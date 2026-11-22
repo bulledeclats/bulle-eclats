@@ -1,0 +1,16 @@
+{
+  "name": "Bulle d'Éclats",
+  "short_name": "Bulle d'Éclats",
+  "description": "Stock, clientes, bons de commande et suivi Chogan de Bulle d'Éclats.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF4EC",
+  "theme_color": "#8E2C48",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
