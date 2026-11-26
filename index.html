@@ -170,11 +170,11 @@ window.FB_CONFIG = {
   function load(src){ return new Promise(function(res, rej){ var s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
   function box(){ var o=document.getElementById("fb-login"); if(o) return o;
     o=document.createElement("div"); o.id="fb-login";
-    o.style.cssText="position:fixed;inset:0;z-index:9999;background:#8E2C48;color:#FBF4EC;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px;text-align:center;font-family:inherit";
+    o.style.cssText="position:fixed;inset:0;z-index:9999;background:"+((window.APP_CFG&&window.APP_CFG.color)||"#8E2C48")+";color:#FBF4EC;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px;text-align:center;font-family:inherit";
     o.innerHTML='<img src="icon-192.png" alt="" width="96" height="96" style="border-radius:22px;box-shadow:0 8px 24px rgba(0,0,0,.25)">'
-      +'<h1 style="margin:0;font-family:\'Playfair Display\',Georgia,serif;font-size:32px;color:#FBF4EC">Bulle d\'Éclats</h1>'
-      +'<p id="fb-msg" style="margin:0;max-width:320px;line-height:1.5;color:#F6DCDD">Connecte-toi avec ton compte Google pour retrouver ton stock, tes clientes et tes commandes.</p>'
-      +'<button id="fb-go" type="button" style="min-height:48px;padding:0 22px;border:0;border-radius:999px;background:#FBF4EC;color:#8E2C48;font:600 16px/1 inherit;cursor:pointer">Se connecter avec Google</button>';
+      +'<h1 style="margin:0;font-family:\'Playfair Display\',Georgia,serif;font-size:32px;color:#FBF4EC">'+((window.APP_CFG&&window.APP_CFG.name)||"Bulle d'Éclats")+'</h1>'
+      +'<p id="fb-msg" style="margin:0;max-width:320px;line-height:1.5;color:#F6DCDD">Connecte-toi avec ton compte Google pour retrouver ton stock, tes clientes et tes commandes. Tes données restent privées, sur ton compte.</p>'
+      +'<button id="fb-go" type="button" style="min-height:48px;padding:0 22px;border:0;border-radius:999px;background:#FBF4EC;color:'+((window.APP_CFG&&window.APP_CFG.color)||"#8E2C48")+';font:600 16px/1 inherit;cursor:pointer">Se connecter avec Google</button>';
     document.body.appendChild(o); return o; }
   function msg(t){ box(); document.getElementById("fb-msg").textContent=t; }
   window.fbDb = async function(){
@@ -224,7 +224,12 @@ function applyProduits(){
   for(const [k,o] of ov){ if(!seen.has(k) && o && o.n) CAT.push({g:"Mes produits ajoutés",k:"",eq:"",f:"",t:"a",...o,c:o.c||k,neuf:true}); }
   BYCODE.clear(); for(const p of CAT) BYCODE.set(p.c.toUpperCase(),p);
 }
-const MOI={nom:"Virginie Baptiste", titre:"Conseillère en beauté et bien-être · Bulle d'Éclats", tel:"07 84 03 81 27", mail:"virginiebulledeclats@gmail.com", web:"bio.site/VirginieBulledeclats"};
+const APP=Object.assign({name:"Bulle d'Éclats", sub:"stock & clientes", generic:false, start:"2026-10-13"}, window.APP_CFG||{});
+const MOI=APP.generic?{prenom:"", nom:"", marque:"", titre:"Conseillère", tel:"", mail:"", web:"", emoji:"✨"}
+  :{prenom:"Virginie", nom:"Virginie Baptiste", marque:"Bulle d'Éclats", titre:"Conseillère en beauté et bien-être", tel:"07 84 03 81 27", mail:"virginiebulledeclats@gmail.com", web:"bio.site/VirginieBulledeclats", emoji:"🫧"};
+const sigName=()=>[MOI.prenom||MOI.nom, MOI.marque].filter(Boolean).join(" – ");
+const fileBase=()=>(MOI.marque||APP.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")||"MonCarnetPro";
+function applyBrand(){ const b=document.querySelector(".brand"); if(b) b.innerHTML=esc(MOI.marque||APP.name)+"<small>"+esc(APP.sub)+"</small>"; }
 const SALONS=[["2026-11-14","Soirée Zen – Centre aquatique de Coulommiers"],["2026-11-21","Marché de Noël de Champeaux"],["2026-11-22","Marché de Noël de Champeaux"],["2026-11-28","Marché de Noël des Chapelles-Bourbon"],["2026-11-29","Marché de Noël de Meilleray"],["2026-12-05","Marché de Noël de Chauconnin-Neufmontiers"],["2026-12-06","Marché de Noël de Chauconnin-Neufmontiers"],["2026-12-12","Marché de Noël de La Celle-sur-Morin"],["2026-12-13","Marché de Noël de Saint-Germain-sur-Morin"],["2027-02-28","Salon du bien-être d'Egreville"]];
 const LIVR=["Remise en main propre","À domicile, port offert","À domicile, port payant (cliente)","Retrait chez moi"];
 const isDom=x=>/^(Livraison à domicile|À domicile)/.test(x||""), portPaye=x=>/port payant/.test(x||"");
@@ -246,7 +251,7 @@ function saveDraft(){ try{ const C=S.cart; if(C && (C.client||C.lines.length)) l
 function loadDraft(){ try{ const d=JSON.parse(localStorage.getItem("be-draft")||"null"); if(d && Array.isArray(d.lines) && (d.client||d.lines.length)) return {...newCart(),...d,restored:true}; }catch(e){} return null; }
 function newCart(){ const d=today(); let sal=""; try{ sal=salonToday(); }catch(_e){ const e=EV_SEED.find(([,e])=>e.debut<=d&&d<=e.fin); sal=e?e[1].nom:""; } try{ const l=JSON.parse(localStorage.getItem("be-salon")||"null"); if(l&&l.d===d&&l.s) sal=l.s; }catch(e){} return {client:null, lines:[], date:d, statut:"En cours", salon:sal, livraison:LIVR[0], paiement:PAIE[0], acompte:"", note:"", rgpd:null}; }
 const PROFILS=["Parfums","Cosmétiques","Maquillage","Produits ménagers","Compléments","Maison & ambiance","Recrutement"];
-const S = { team:new Map(), ptsMois:new Map(), coffrets:new Map(), orders:new Map(), fidCfg:{n:10, cadeau:"un cadeau au choix", start:""}, events:new Map(), evSeeded:null, obj:{clientes:5,commandes:20,recrues:3}, cfg:{start:"2026-10-13",j1:15,j2:60}, calMonth:today().slice(0,7), relDay:today(), cliFilter:"toutes", stock:new Map(), produits:new Map(), memo:new Map(), q4:"", clients:new Map(), ventes:new Map(), mvts:new Map(), loaded:{}, db:null, view:"accueil", q:"", stockFilter:"tous", suiviFilter:"cours", bestP:"tout", bestT:"tout", cart:loadDraft()||newCart(), readOnly:false };
+const S = { team:new Map(), ptsMois:new Map(), coffrets:new Map(), orders:new Map(), fidCfg:{n:10, cadeau:"un cadeau au choix", start:""}, events:new Map(), evSeeded:null, obj:{clientes:5,commandes:20,recrues:3}, cfg:{start:APP.start,j1:15,j2:60}, calMonth:today().slice(0,7), relDay:today(), cliFilter:"toutes", stock:new Map(), produits:new Map(), memo:new Map(), q4:"", clients:new Map(), ventes:new Map(), mvts:new Map(), loaded:{}, db:null, view:"accueil", q:"", stockFilter:"tous", suiviFilter:"cours", bestP:"tout", bestT:"tout", cart:loadDraft()||newCart(), readOnly:false };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[’'`]/g," ").replace(/\s+/g," ").trim();
@@ -327,7 +332,7 @@ function annivInfo(c){ const a=parseAnniv(c.anniv); if(!a||!a.m||!a.d||a.m>12||a
   const mois=a.m===+t.slice(5,7); const used=String(c.annivRemise||"")===String(y);
   return {a, occ, days, mois, used, age:a.y?y-a.y:null, label:String(a.d).padStart(2,"0")+"/"+String(a.m).padStart(2,"0")}; }
 function annivMsg(c){ const i=annivInfo(c); const moisNom=i?new Date(i.occ+"T12:00").toLocaleDateString("fr-FR",{month:"long"}):"ce mois-ci";
-  return `Joyeux anniversaire ${c.prenom||clientName(c)} ! 🎂\n\nPour fêter ça, je vous offre -10 % sur votre prochaine commande, valable pendant tout le mois de ${moisNom}.\n\nBelle journée,\nVirginie – Bulle d'Éclats\n${MOI.tel}`; }
+  return `Joyeux anniversaire ${c.prenom||clientName(c)} ! 🎂\n\nPour fêter ça, je vous offre -10 % sur votre prochaine commande, valable pendant tout le mois de ${moisNom}.\n\nBelle journée,\n${sigName()}${MOI.tel?"\n"+MOI.tel:""}`; }
 function computeRelances(ventes){
   const last=new Map();
   for(const v of ventes){ if(v.client && v.date && v.date>=S.cfg.start && v.date>(last.get(v.client)||"")) last.set(v.client,v.date); }
@@ -427,7 +432,7 @@ function render(){
   const m=$("#main");
   const keepFocus = document.activeElement && document.activeElement.id;
   const caret = document.activeElement && document.activeElement.selectionStart;
-  m.innerHTML = ({recherche:vRecherche, accueil:vAccueil, vendre:vVendre, stock:vStock, commander:vCommander, chogan:vChogan, suivi:vSuivi, best:vBest, coffrets:vCoffrets, equipe:vEquipe, relances:vRelances, clientes:vClientes, donnees:vDonnees})[S.view]();
+  m.innerHTML = ({recherche:vRecherche, accueil:vAccueil, vendre:vVendre, stock:vStock, commander:vCommander, chogan:vChogan, suivi:vSuivi, best:vBest, coffrets:vCoffrets, equipe:vEquipe, relances:vRelances, clientes:vClientes, donnees:vDonnees, profil:vProfil})[S.view]();
   if (keepFocus){ const el=document.getElementById(keepFocus); if(el){ el.focus(); try{ el.setSelectionRange(caret,caret);}catch(e){} } }
 }
 const MENU=[["accueil","Tableau de bord",'<rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/>'],
@@ -442,6 +447,7 @@ const MENU=[["accueil","Tableau de bord",'<rect x="3.5" y="3.5" width="7" height
  ["relances","Agenda : salons et relances",'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'],
  ["equipe","Mon équipe",'<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c.8-3.6 3.2-5.4 6-5.4s5.2 1.8 6 5.4M14.5 15c2.6-.4 5 1 5.8 4"/>'],
  ["clientes","Clientes",'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'],
+ ["profil","Mon profil",'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/><path d="M17 4l3 3"/>'],
  ["donnees","Mes données et sauvegarde",'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>']];
 function fillMenu(){
   const cnt={chogan:new Set([...S.memo.values()].filter(m=>m.cmd).map(orderKey)).size, commander:CALC.toOrder.length, relances:CALC.relDue, suivi:CALC.ordOpen};
@@ -573,9 +579,9 @@ function vReassort(){
 }
 const WA_T=[["salons","Mes prochains marchés"],["nouveaute","Nouveautés"],["noel","Idées cadeaux de Noël"],["date","Commander avant une date"]];
 function waText(t, opt){
-  const sig=`\nVirginie – Bulle d'Éclats\n${MOI.tel}`;
+  const sig=`\n${sigName()}${MOI.tel?"\n"+MOI.tel:""}`;
   if(t==="salons"){ const ev=evList().filter(e=>e.fin>=today()).slice(0,6); return `Bonjour à toutes et à tous ✨\n\nVoici où me retrouver prochainement avec mes parfums et produits Chogan :\n\n${ev.map(e=>"📍 "+e.nom+" – "+evDates(e).replace(/^le /,"")+(e.lieu&&!e.nom.includes(e.lieu)?" ("+e.lieu+")":"")+(e.horaires?" – "+e.horaires:"")).join("\n")||"(ajoute tes salons dans l'Agenda)"}\n\nVous pouvez aussi passer commande à l'avance, je vous l'apporte sur place. Au plaisir de vous voir !${sig}`; }
-  if(t==="nouveaute"){ const ps=(opt.codes||[]).map(c=>BYCODE.get(c)).filter(Boolean); return `Bonjour à toutes et à tous ✨\n\nNouveauté chez Bulle d'Éclats :\n\n${ps.map(p=>"🆕 "+p.n+(opt.eq&&p.eq?" (inspiré de "+p.eq+")":"")+" – "+eur(p.pv)).join("\n")||"(choisis les produits ci-dessous)"}\n\nDisponible tout de suite, n'hésitez pas à me demander conseil ou à passer commande en message privé.${sig}`; }
+  if(t==="nouveaute"){ const ps=(opt.codes||[]).map(c=>BYCODE.get(c)).filter(Boolean); return `Bonjour à toutes et à tous ✨\n\nNouveauté${MOI.marque?" chez "+MOI.marque:""} :\n\n${ps.map(p=>"🆕 "+p.n+(opt.eq&&p.eq?" (inspiré de "+p.eq+")":"")+" – "+eur(p.pv)).join("\n")||"(choisis les produits ci-dessous)"}\n\nDisponible tout de suite, n'hésitez pas à me demander conseil ou à passer commande en message privé.${sig}`; }
   if(t==="noel"){ const top=bestData("tout","tout").list.slice(0,5).map(a=>a.p); return `Bonjour à toutes et à tous 🎄\n\nVous cherchez une idée cadeau ? Voici les coups de cœur de mes clientes :\n\n${top.map(p=>"🎁 "+p.n+(opt.eq&&p.eq?" (inspiré de "+p.eq+")":"")+" – "+eur(p.pv)).join("\n")}\n\nParfums, recharges de sac, gels douche et crèmes assortis, bougies… Je peux préparer des coffrets sur mesure. Écrivez-moi en privé !${sig}`; }
   if(t==="date"){ return `Bonjour à toutes et à tous 🎄\n\nPour être livrés à temps pour Noël, pensez à passer vos commandes avant le ${opt.date?fdate(opt.date):"…"}.\n\nJe reste disponible en message privé pour vous conseiller.${sig}`; }
   return "";
@@ -677,6 +683,7 @@ function vRecherche(){
 }
 function vAccueil(){
   let h=`<h1>Tableau de bord</h1>`;
+  if(APP.generic&&S.profilOk===false) h+=`<div class="card" style="border:2px solid var(--bord)"><div class="t1" style="font-size:18px">Bienvenue dans ${esc(APP.name)} ✨</div><p class="note">Ton carnet de conseillère : clientes, stock, bons de commande, suivi de tes commandes fournisseur, relances et salons. Tout reste privé, sur ton compte.</p><ol class="note" style="padding-left:18px;margin:6px 0 12px"><li>Remplis ton profil (il signe tes récaps et messages).</li><li>Ajoute ton stock depuis l'onglet Stock.</li><li>Crée ton premier bon de commande.</li></ol><button class="btn" data-go="profil">Remplir mon profil</button></div>`;
   {
     const relT=CALC.relances.filter(r=>r.date<=today());
     const bar=(k,l)=>{ const v=CALC.objMonth[k], g=Number(S.obj[k])||0, pc=g?Math.min(100,Math.round(v/g*100)):0; return `<div style="margin:8px 0 12px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${l}</span><b>${v} / ${g}${v>=g&&g?" ✓":""}</b></div><div role="progressbar" aria-label="${l}" aria-valuenow="${v}" aria-valuemin="0" aria-valuemax="${g}" style="height:9px;border-radius:6px;background:var(--line);margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:${pc}%;background:${v>=g&&g?"var(--ok)":"var(--nude)"};border-radius:6px"></span></div></div>`; };
@@ -723,12 +730,12 @@ function vStock(){
   <div class="btns" style="margin:10px 0"><button class="btn small" data-act="entree">+ Réception / ajout au stock</button><button class="btn small sec" data-act="perso">Ma conso perso</button><button class="btn small sec" data-act="sortie">− Sortie (cadeau…)</button><button class="btn small ghost" data-act="expo">Mettre en exposition</button><button class="btn small ghost" data-act="newprod">+ Nouveau produit</button></div>
   <p class="note">${nb(CALC.pieces)} pièces vendables · ${eur(CALC.value)} au prix d'achat${CALC.expoPcs?` · ${nb(CALC.expoPcs)} en exposition (${eur(CALC.expoVal)})`:""}</p>`;
   if(f==="cof"){ return h+vCoffrets(true); }
-  if(f==="perso"){ const isP=m=>m.type==="Sortie"&&/perso|famille/i.test(String(m.motif||"")); const all=[...S.mvts.values()].filter(isP).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  if(f==="perso"){ const isP=isPersoMvt; const allE=[...S.mvts.entries()].filter(([,m])=>isP(m)).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date))); const all=allE.map(x=>x[1]);
     const mo=today().slice(0,7), y=today().slice(0,4); const val=l=>l.reduce((t,m)=>t+(Number(m.qty)||0)*((BYCODE.get(String(m.code||"").toUpperCase())||{}).pa||0),0);
     const lm=all.filter(m=>String(m.date).startsWith(mo)), ly=all.filter(m=>String(m.date).startsWith(y));
     return h+`<div class="tiles"><div class="tile"><b class="money">${eur(val(lm))}</b><span>Conso perso ce mois (prix d'achat)</span></div><div class="tile"><b class="money">${eur(val(ly))}</b><span>Depuis janvier</span></div></div>
     <div class="btns" style="margin:10px 0"><button class="btn small" data-act="perso">+ Ajouter une conso perso</button></div>
-    ${all.length?`<div class="list">${all.map(m=>{const p=BYCODE.get(String(m.code||"").toUpperCase())||{}; return `<div class="row" style="cursor:default"><span class="code">${esc(m.code)}</span><span class="grow"><span class="t1">${esc(p.n||m.code)}</span><br><span class="t2">${fdate(m.date)} · ${esc(m.motif)}${m.note?" · "+esc(m.note):""}</span></span><span class="right"><b>× ${nb(m.qty)}</b><br><span class="t2 money">${eur((Number(m.qty)||0)*(p.pa||0))}</span></span></div>`;}).join("")}</div>`:`<div class="card empty">Aucune conso perso enregistrée.</div>`}`; }
+    ${all.length?`<p class="note">Appuie sur une ligne pour la modifier ou la supprimer.</p><div class="list">${allE.map(([id,m])=>{const p=BYCODE.get(String(m.code||"").toUpperCase())||{}; return `<button class="row" data-act="editmvt" data-id="${esc(id)}"><span class="code">${esc(m.code)}</span><span class="grow"><span class="t1">${esc(p.n||m.code)}</span><br><span class="t2">${fdate(m.date)} · ${esc(m.motif)}${m.note?" · "+esc(m.note):""}</span></span><span class="right"><b>× ${nb(m.qty)}</b><br><span class="t2 money">${eur((Number(m.qty)||0)*(p.pa||0))}</span></span></button>`;}).join("")}</div>`:`<div class="card empty">Aucune conso perso enregistrée.</div>`}`; }
   if(f==="expo"){ const ex=[...CALC.expo.entries()].filter(([k,q])=>q>0&&BYCODE.get(k)).filter(([k])=>!q||q.split(" ").every(w=>norm(k+" "+BYCODE.get(k).n+" "+BYCODE.get(k).eq).includes(w)));
     return h+(ex.length?`<p class="note">Produits réservés à ton stand : ils ne sont ni vendables ni comptés dans ton stock disponible.</p><div class="list">${ex.map(([k,q])=>{const p=BYCODE.get(k); return `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="code">${esc(p.c)}</span><span class="grow"><span class="t1">${esc(p.n)}</span><br><span class="t2">${esc(p.eq||p.k||"")}</span></span><b>× ${q}</b><span class="btns" style="width:100%;justify-content:flex-end;margin-top:6px"><button class="btn small" data-act="expoback" data-code="${esc(p.c)}">Remettre en stock</button><button class="btn small ghost" data-act="expoend" data-code="${esc(p.c)}">Fin d'expo (vide, abîmé…)</button></span></div>`;}).join("")}</div>`:`<div class="card empty">Aucun produit en exposition. Utilise « Mettre en exposition » pour réserver des produits à ton stand.</div>`); }
   let extra="";
@@ -839,7 +846,7 @@ function buildExport(){
 async function exportExcel(btn){
   btn.disabled=true;
   try{
-    const blob=buildExport(); const name="Bulle_dEclats_sauvegarde_"+today()+".xlsx";
+    const blob=buildExport(); const name=fileBase()+"_sauvegarde_"+today()+".xlsx";
     const dl=window.claude ? await window.claude.use("downloads") : null;
     if(dl){ await dl.save({filename:name, data:blob}); toast("Fichier Excel enregistré."); }
     else { const u=URL.createObjectURL(blob); const l=document.createElement("a"); l.href=u; l.download=name; l.click(); setTimeout(()=>URL.revokeObjectURL(u),4000); }
@@ -850,12 +857,12 @@ async function exportExcel(btn){
 const COLS=[["stock","stock"],["clients","clients"],["ventes","ventes"],["mvts","mvts"],["memo","memo"],["produits","produits"],["coffrets","coffrets"],["chogcmd","orders"],["equipe","team"],["pointsmois","ptsMois"],["events","events"]];
 function dataDump(){ const out={app:"bulle-eclats",version:1,date:new Date().toISOString(),data:{}};
   for(const [col,key] of COLS){ const m=S[key]; if(!(m instanceof Map)) continue; out.data[col]={}; for(const [id,d] of m){ if(d&&d._pending){ const {_pending,...x}=d; out.data[col][id]=x; } else out.data[col][id]=d; } }
-  out.data.config={relances:S.cfg, objectifs:S.obj, fidelite:S.fidCfg, events:{seeded:true}}; return out; }
+  out.data.config={relances:S.cfg, objectifs:S.obj, fidelite:S.fidCfg, events:{seeded:true}, ...(S.profilOk?{profil:Object.fromEntries(PF.map(([k])=>[k,MOI[k]||""]))}:{})}; return out; }
 async function saveBlob(blob,name){ const dl=window.claude ? await window.claude.use("downloads") : null;
   if(dl){ await dl.save({filename:name, data:blob}); return; }
   const u=URL.createObjectURL(blob); const l=document.createElement("a"); l.href=u; l.download=name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u),4000); }
 async function exportJSON(btn){ btn.disabled=true; try{ const d=dataDump(); const n=Object.values(d.data).reduce((t,c)=>t+Object.keys(c).length,0);
-    await saveBlob(new Blob([JSON.stringify(d)],{type:"application/json"}),"Bulle_dEclats_donnees_"+today()+".json"); toast(n+" éléments sauvegardés dans le fichier."); }
+    await saveBlob(new Blob([JSON.stringify(d)],{type:"application/json"}),fileBase()+"_donnees_"+today()+".json"); toast(n+" éléments sauvegardés dans le fichier."); }
   catch(err){ if(!err||err.code!=="declined") toast("Sauvegarde impossible pour le moment, réessaie."); } btn.disabled=false; }
 async function importJSON(file){ const st={set textContent(v){ S.impMsg=v; const e=$("#imp-st"); if(e) e.textContent=v; }}; try{
     const d=JSON.parse(await file.text()); if(!d||d.app!=="bulle-eclats"||!d.data) throw new Error("format");
@@ -863,13 +870,18 @@ async function importJSON(file){ const st={set textContent(v){ S.impMsg=v; const
     let n=0; if(st) st.textContent="Import en cours… 0 / "+ops.length;
     for(let i=0;i<ops.length;i+=25){ await Promise.all(ops.slice(i,i+25).map(([p,x])=>S.db.doc(p).set(x))); n=Math.min(ops.length,i+25); if(st) st.textContent="Import en cours… "+n+" / "+ops.length; }
     if(st) st.textContent="✓ "+ops.length+" éléments importés."; toast("Données importées !"); }
-  catch(err){ if(st) st.textContent=""; toast(err&&err.message==="format"?"Ce fichier n'est pas une sauvegarde Bulle d'Éclats.":"Import impossible, réessaie."); } }
+  catch(err){ if(st) st.textContent=""; toast(err&&err.message==="format"?"Ce fichier n'est pas une sauvegarde de l'appli.":"Import impossible, réessaie."); } }
+const PF=[["prenom","Prénom","Ex. : Julie"],["nom","Nom complet (signature)","Ex. : Julie Martin"],["marque","Nom de ta marque ou boutique","Ex. : Les Senteurs de Julie (facultatif)"],["titre","Ton titre","Ex. : Conseillère parfums et beauté"],["tel","Téléphone","06 …"],["mail","E-mail","prenom@gmail.com"],["web","Lien (site, Instagram, Facebook…)","facultatif"],["emoji","Emoji de signature","✨"]];
+function vProfil(){ return `<h1>Mon profil</h1><p class="note">Ces informations apparaissent dans tes récapitulatifs de commande, tes messages aux clientes et en haut de l'appli. Elles ne sont jamais montrées ailleurs.</p>
+  <div class="card">${PF.map(([k,l,ph])=>`<label class="f" for="pf-${k}">${l}</label><input id="pf-${k}" class="in" value="${esc(MOI[k]||"")}" placeholder="${esc(ph)}" ${k==="tel"?'inputmode="tel"':k==="mail"?'inputmode="email"':""}>`).join("")}
+  <div class="btns" style="margin-top:14px"><button class="btn" data-act="saveprofil">Enregistrer mon profil</button></div></div>
+  <div class="card"><div class="sect" style="margin-top:0">Aperçu de ta signature</div><pre style="white-space:pre-wrap;font:inherit;margin:0">${esc([MOI.nom||MOI.prenom, [MOI.titre,MOI.marque].filter(Boolean).join(" · "), [MOI.tel,MOI.mail].filter(Boolean).join(" · "), MOI.web].filter(Boolean).join("\n")||"(remplis ton profil)")}</pre></div>`; }
 function vDonnees(){ const n=COLS.reduce((t,[,k])=>t+(S[k] instanceof Map?S[k].size:0),0); const u=window.fbUser;
   return `<h1>Mes données</h1>
   ${u?`<div class="card"><div class="t1">Connectée : ${esc(u.email||"")}</div><p class="note">Tes données sont enregistrées sur ton compte et synchronisées sur tous tes appareils.</p><button class="btn ghost" data-act="fblogout">Se déconnecter</button></div>`:""}
   <div class="card"><div class="sect" style="margin-top:0">Sauvegarder</div><p class="note">${n} éléments (stock, clientes, ventes, commandes, agenda…). Le fichier .json te sert de sauvegarde, ou à transférer tes données dans la nouvelle appli.</p>
   <div class="btns"><button class="btn" data-act="expjson">Sauvegarder mes données (.json)</button><button class="btn sec" data-act="export">Export Excel</button></div></div>
-  ${S.readOnly?"":`<div class="card"><div class="sect" style="margin-top:0">Importer une sauvegarde</div><p class="note">Choisis un fichier « Bulle_dEclats_donnees_….json ». Les éléments du fichier sont ajoutés, et ceux qui existent déjà sont remplacés par la version du fichier.</p>
+  ${S.readOnly?"":`<div class="card"><div class="sect" style="margin-top:0">Importer une sauvegarde</div><p class="note">Choisis un fichier « …_donnees_….json » créé avec « Sauvegarder mes données ». Les éléments du fichier sont ajoutés, et ceux qui existent déjà sont remplacés par la version du fichier.</p>
   <label class="btn sec" style="display:inline-flex;cursor:pointer">Choisir le fichier<input id="imp-file" type="file" accept=".json,application/json" style="display:none"></label><p class="note" id="imp-st" aria-live="polite">${esc(S.impMsg||"")}</p></div>`}`; }
 function orderCard(o){
   const c=S.clients.get(o.client); const name=c?clientName(c):(o.clientName||"Sans nom");
@@ -910,9 +922,9 @@ function relProduits(id,from){ const vs=[...S.ventes.values()].filter(v=>v.clien
 function relMsgText(k,id,from,tu){ const c=S.clients.get(id)||{}; const pr=c.prenom||clientName(c); const ps=relProduits(id,from);
   const prod=ps.length?(ps.length>2?ps.slice(0,2).join(", ")+"…":ps.join(" et ")):"";
   const T=(a,b)=>tu?a:b; const ton=T("ton","votre"), tes=T("tes","vos");
-  const sign=`\n\nVirginie – Bulle d'Éclats 🫧\n${MOI.tel}`;
+  const sign=`\n\n${sigName()} ${MOI.emoji||""}${MOI.tel?"\n"+MOI.tel:""}`;
   const ev=evList().find(e=>e.fin>=today());
-  if(k==="sat") return `${T("Coucou","Bonjour")} ${pr} ! C'est Virginie de Bulle d'Éclats 🫧\n\n${T("Tu as pu tester ta commande","Avez-vous pu tester votre commande")}${prod?" ("+prod+")":""} ? Je voulais savoir si elle ${T("te plaît","vous plaît")}${ps.some(n=>n.startsWith("parfum"))?" et si le parfum tient bien sur "+T("ta","votre")+" peau":""}. N'${T("hésite","hésitez")} pas à me dire, ${ton} avis compte beaucoup pour moi 😊\n\nEt si ${T("tu es contente","vous êtes satisfaite")}, ${T("tu peux","pourriez-vous")} me laisser un petit avis sur ma page Google Bulle d'Éclats${T(" ?"," ?")} Ça m'aide énormément à me faire connaître 🙏${S.cfg.avis?"\n👉 "+S.cfg.avis:""}`+sign;
+  if(k==="sat") return `${T("Coucou","Bonjour")} ${pr} ! C'est ${MOI.prenom||MOI.nom}${MOI.marque?" de "+MOI.marque:""} ${MOI.emoji||""}\n\n${T("Tu as pu tester ta commande","Avez-vous pu tester votre commande")}${prod?" ("+prod+")":""} ? Je voulais savoir si elle ${T("te plaît","vous plaît")}${ps.some(n=>n.startsWith("parfum"))?" et si le parfum tient bien sur "+T("ta","votre")+" peau":""}. N'${T("hésite","hésitez")} pas à me dire, ${ton} avis compte beaucoup pour moi 😊\n\nEt si ${T("tu es contente","vous êtes satisfaite")}, ${T("tu peux","pourriez-vous")} me laisser un petit avis sur ma page Google${MOI.marque?" "+MOI.marque:""} ? Ça m'aide énormément à me faire connaître 🙏${S.cfg.avis?"\n👉 "+S.cfg.avis:""}`+sign;
   if(k==="reach") return `Bonjour ${pr} !\n\n${prod?T("Ça fait un moment que tu as pris","Cela fait un moment que vous avez pris")+" : "+prod+". "+T("Tu arrives","Vous arrivez")+" peut-être bientôt au bout 😉":"J'espère que "+tes+" produits "+T("te","vous")+" plaisent toujours 😉"} Si ${T("tu veux en reprendre","vous souhaitez en reprendre")} ou découvrir autre chose, ${T("dis-le-moi","dites-le-moi")} et je ${T("te","vous")} prépare ${T("ta","votre")} commande. Je peux aussi ${T("te","vous")} faire tester des échantillons des nouveautés !`+sign;
   if(k==="anniv"){ const i=annivInfo(c); const mois=i?new Date(i.occ+"T12:00").toLocaleDateString("fr-FR",{month:"long"}):"ce mois-ci";
     return `Joyeux anniversaire ${pr} ! 🎉\n\nPour l'occasion, je ${T("t'offre","vous offre")} -10 % sur ${T("ta","votre")} prochaine commande, valable pendant tout le mois de ${mois}. ${T("Fais-toi plaisir, tu le mérites","Faites-vous plaisir, vous le méritez")} ! Belle journée ✨`+sign; }
@@ -925,7 +937,7 @@ function sheetRelMsg(){ const r=S.relMsg; if(!r) return; const c=S.clients.get(r
   <div class="chips" role="group" aria-label="Modèle de message">${RMSG.map(([k,l])=>`<button type="button" class="chip" data-act="relmsgk" data-k="${k}" aria-pressed="${k===r.k}">${l}</button>`).join("")}</div>
   <div class="chips" role="group" aria-label="Tutoiement" style="margin-top:8px"><button type="button" class="chip" data-act="relmsgtu" data-tu="tu" aria-pressed="${tu}">Tutoyer</button><button type="button" class="chip" data-act="relmsgtu" data-tu="vous" aria-pressed="${!tu}">Vouvoyer</button></div>
   <label class="f" for="recap-txt" style="margin-top:10px">Texte (tu peux le modifier)</label><textarea id="recap-txt" class="in" rows="9" style="width:100%;font-size:15px">${esc(txt)}</textarea>
-  <div class="btns" style="margin-top:10px">${tel?`<a class="btn sec" data-msglink="wa" style="text-decoration:none" data-ml="1" href="https://wa.me/${tel.replace(/^\+/,"")}?text=${encodeURIComponent(txt)}">WhatsApp</a><a class="btn sec" data-msglink="sms" style="text-decoration:none" data-ml="1" href="sms:${tel}?body=${encodeURIComponent(txt)}">SMS</a>`:""}${c.email?`<a class="btn sec" data-msglink="mail" style="text-decoration:none" data-ml="1" href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent("Bulle d'Éclats")}&body=${encodeURIComponent(txt)}">E-mail</a>`:""}<button class="btn ghost" data-act="copyrecap">Copier le texte</button></div>
+  <div class="btns" style="margin-top:10px">${tel?`<a class="btn sec" data-msglink="wa" style="text-decoration:none" data-ml="1" href="https://wa.me/${tel.replace(/^\+/,"")}?text=${encodeURIComponent(txt)}">WhatsApp</a><a class="btn sec" data-msglink="sms" style="text-decoration:none" data-ml="1" href="sms:${tel}?body=${encodeURIComponent(txt)}">SMS</a>`:""}${c.email?`<a class="btn sec" data-msglink="mail" style="text-decoration:none" data-ml="1" href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(MOI.marque||"Message de "+(MOI.prenom||MOI.nom))}&body=${encodeURIComponent(txt)}">E-mail</a>`:""}<button class="btn ghost" data-act="copyrecap">Copier le texte</button></div>
   ${!tel&&!c.email?`<p class="note">Pas de téléphone ni d'e-mail sur sa fiche : copie le texte, ou <button class="btn small ghost" data-act="editclient" data-id="${esc(r.id)}">complète sa fiche</button>.</p>`:""}
   <p class="note">Après l'envoi, appuie sur « Fait » dans la relance pour la retirer de ta liste.</p>`); }
 function vRelances(){
@@ -967,7 +979,7 @@ function detailsHtml(C,c,tot){
   <div class="grid2"><div><label class="f" for="sale-paie">Paiement</label><select id="sale-paie" class="in">${PAIE.map(o=>`<option ${o===C.paiement?"selected":""}>${o}</option>`).join("")}</select></div><div><label class="f" for="sale-acompte">Montant réglé (€)</label><input id="sale-acompte" class="in" inputmode="decimal" value="${esc(C.acompte)}" placeholder="${C.paiement===PAIE[0]?"0":String(tot.toFixed(2)).replace(".",",")}"></div></div>
   ${C.paiement!==PAIE[0]&&ac>0&&ac<tot?`<p class="note">Acompte : reste <b>${eur(tot-ac)}</b> à régler.</p>`:""}
   <label class="f" for="sale-note">Note (visible dans le récap)</label><input id="sale-note" class="in" value="${esc(C.note)}" placeholder="Ex. : emballage cadeau, livrer après 18 h…">
-  <label class="check"><input type="checkbox" id="sale-rgpd" ${(C.rgpd??!!(c&&c.rgpd))?"checked":""}> La cliente accepte d'être recontactée par Bulle d'Éclats (e-mail, SMS, téléphone)</label>
+  <label class="check"><input type="checkbox" id="sale-rgpd" ${(C.rgpd??!!(c&&c.rgpd))?"checked":""}> La cliente accepte d'être recontactée par ${esc(MOI.marque||MOI.nom||"moi")} (e-mail, SMS, téléphone)</label>
   </div>`;
 }
 function orderMeta(o){ const v=o.lines[0]||{}; const port=o.lines.reduce((t,x)=>t+(Number(x.port)||0),0); const ac=o.lines.reduce((t,x)=>t+(Number(x.acompte)||0),0); return {salon:v.salon||"", livraison:v.livraison||"", paiement:v.paiement||"", note:v.note||"", acompte:ac, venteType:v.venteType||"", port}; }
@@ -991,14 +1003,11 @@ ${liv}${m.note?"\nNote : "+m.note:""}
 Je reste disponible pour toute question.
 Belle journée,
 
-${MOI.nom}
-${MOI.titre}
-${MOI.tel} · ${MOI.mail}
-${MOI.web}`;
+${[MOI.nom||MOI.prenom, [MOI.titre,MOI.marque].filter(Boolean).join(" · "), [MOI.tel,MOI.mail].filter(Boolean).join(" · "), MOI.web].filter(Boolean).join("\n")}`;
 }
 function sheetRecap(key, fresh){
   const o=CALC.orders.find(x=>x.key===key); if(!o) return; const c=S.clients.get(o.client)||{};
-  const txt=recapText(o); const subj="Votre commande Bulle d'Éclats du "+fdate(o.date);
+  const txt=recapText(o); const subj="Votre commande "+(MOI.marque?MOI.marque+" ":"")+"du "+fdate(o.date);
   const tel=String(c.tel||"").replace(/[^\d+]/g,"").replace(/^0(\d{9})$/,"+33$1");
   openSheet(`<div class="sheet-head"><h2 style="margin:0">${fresh?"Bon enregistré":"Récapitulatif"}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
   <p class="note">Envoie le récapitulatif à ${esc(clientName(c))}. Ta messagerie s'ouvre avec le texte prêt : il ne reste qu'à appuyer sur Envoyer.</p>
@@ -1056,6 +1065,8 @@ function sheetProduct(code){
   <div class="card"><div style="margin-bottom:10px">${stockPill(code)}${(CALC.expo.get(code)||0)>0?` <span class="pill" style="background:var(--champ);color:var(--champ-ink)">+ ${CALC.expo.get(code)} en exposition (non vendable)</span>`:""}</div><dl class="kv"><dt>Gamme</dt><dd>${esc(p.g)}</dd><dt>Catégorie</dt><dd>${esc(p.k)}</dd>${p.f?`<dt>Format</dt><dd>${esc(p.f)}</dd>`:""}<dt>Prix de vente</dt><dd class="money">${p.pv!=null?eur(p.pv):"—"}</dd><dt>Prix d'achat</dt><dd class="money">${p.pa!=null?eur(p.pa):"—"}</dd><dt>Gain par vente</dt><dd class="money gaintxt">${(p.pv!=null&&p.pa!=null)?eur(p.pv-p.pa):"—"}</dd><dt>Points</dt><dd>${p.pt!=null?nb(p.pt):"—"}</dd><dt>Seuil d'alerte</dt><dd>${nb(s.seuil||0)}</dd></dl></div>
   <div class="btns"><button class="btn" data-act="sellthis" data-code="${esc(code)}">Vendre</button><button class="btn sec" data-act="entree" data-code="${esc(code)}">+ Ajouter au stock</button><button class="btn ghost" data-act="perso" data-code="${esc(code)}">Ma conso perso</button><button class="btn ghost" data-act="expo" data-code="${esc(code)}">Mettre en exposition</button>${(CALC.expo.get(code)||0)>0?`<button class="btn ghost" data-act="expoback" data-code="${esc(code)}">Retour d'exposition</button>`:""}<button class="btn ghost" data-act="seuil" data-code="${esc(code)}">Seuil d'alerte</button><button class="btn ghost" data-act="editprod" data-code="${esc(code)}">Modifier le produit</button></div>
   ${p.mod?`<p class="note">Prix ou infos modifiés par toi.</p>`:""}${p.neuf?`<p class="note">Produit ajouté par toi.</p>`:""}
+  ${(()=>{ const ml=[...S.mvts.entries()].filter(([,m])=>String(m.code||"").toUpperCase()===code).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date))||String(b[1].created||"").localeCompare(String(a[1].created||""))).slice(0,8);
+    return ml.length?`<div class="sect">Derniers mouvements de stock</div><p class="note" style="margin-top:0">Une erreur ? Appuie sur la ligne pour la corriger ou la supprimer.</p>${mvtsList(ml)}`:""; })()}
   ${(()=>{ const as=assortis(code); return as.length?`<div class="sect">À proposer avec</div><div class="list">${as.map(x=>`<button class="row" data-act="product" data-code="${esc(x.p.c)}"><span class="code">${esc(x.p.c)}</span><span class="grow"><span class="t1">${esc(x.p.n)}</span><br><span class="t2">${esc(x.why)} · ${eur(x.p.pv)}${x.p.pt!=null?" · "+nb(x.p.pt)+" pts":""}</span></span><span class="right">${stockPill(x.p.c)}</span></button>`).join("")}</div>`:""; })()}
   ${hist.length?`<div class="sect">Dernières ventes</div><div class="list">${hist.map(v=>{const c=S.clients.get(v.client);return `<div class="row" style="cursor:default"><span class="grow"><span class="t1">${esc(c?clientName(c):v.clientName||"")}</span><br><span class="t2">${fdate(v.date)} · ${nb(v.qty)} × ${eur(v.pu)}</span></span></div>`;}).join("")}</div>`:""}`);
 }
@@ -1094,16 +1105,23 @@ const MVT={"Entrée":["Ajouter au stock","Réception d'une commande Chogan ou co
  "Exposition":["Mettre en exposition","Ces produits restent à toi mais sortent du stock vendable : ils ne seront plus proposés à la vente ni comptés comme disponibles.",["Présentoir salon","Testeur","Vitrine / déco"]],
  "Retour expo":["Retour d'exposition","Le produit redevient vendable et retourne dans ton stock disponible.",["Remis en vente","Correction"]],
  "Fin d'expo":["Fin d'exposition","Le produit d'exposition est terminé : il sort définitivement (vide, abîmé, offert…). Ton stock vendable ne change pas.",["Vide / terminé","Abîmé","Offert","Vendu (prix spécial)"]]};
-function sheetMvt(type, code){
+const isPersoMvt=m=>m&&m.type==="Sortie"&&/perso|famille/i.test(String(m.motif||""));
+const MVT_LBL={"Entrée":"Entrée en stock","Sortie":"Sortie","Exposition":"Mise en exposition","Retour expo":"Retour d'exposition","Fin d'expo":"Fin d'exposition"};
+function sheetMvt(type, code, id){
+  const m=id?S.mvts.get(id):null; if(m){ type=isPersoMvt(m)?"Perso":m.type; code=m.code; }
   const T=MVT[type]||MVT["Sortie"]; const ex=code?(CALC.expo.get(String(code).toUpperCase())||0):0;
-  openSheet(`<div class="sheet-head"><h2 style="margin:0">${T[0]}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
-  <p class="note">${T[1]}${(type==="Retour expo"||type==="Fin d'expo")&&code?" "+ex+" en exposition actuellement.":""}</p>
-  <form id="mform" data-type="${type==="Perso"?"Sortie":type}"><label class="f" for="mf-code">Produit</label><input id="mf-code" class="in" autocomplete="off" placeholder="Code ou nom…" value="${esc(code||"")}"><div id="mf-res"></div>
-  <div class="grid2"><div><label class="f" for="mf-qty">Quantité</label><input id="mf-qty" class="in" type="number" min="1" step="1" value="1" inputmode="numeric"></div><div><label class="f" for="mf-date">Date</label><input id="mf-date" class="in" type="date" value="${today()}"></div></div>
-  <label class="f" for="mf-motif">Motif</label><select id="mf-motif" class="in">${T[2].map(m=>`<option>${m}</option>`).join("")}</select>
-  <label class="f" for="mf-note">Note</label><input id="mf-note" class="in">
-  <button class="btn" style="width:100%;margin-top:14px" type="submit">Enregistrer</button></form>`);
+  const motifs=m&&m.motif&&!T[2].includes(m.motif)?[m.motif,...T[2]]:T[2];
+  openSheet(`<div class="sheet-head"><h2 style="margin:0">${m?"Modifier : ":""}${T[0]}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
+  <p class="note">${m?"Corrige le produit, la quantité, la date ou le motif : le stock est recalculé aussitôt.":T[1]}${!m&&(type==="Retour expo"||type==="Fin d'expo")&&code?" "+ex+" en exposition actuellement.":""}</p>
+  <form id="mform" data-type="${m?esc(m.type):(type==="Perso"?"Sortie":type)}" ${m?`data-id="${esc(id)}"`:""}><label class="f" for="mf-code">Produit</label><input id="mf-code" class="in" autocomplete="off" placeholder="Code ou nom…" value="${esc(code||"")}"><div id="mf-res"></div>
+  <div class="grid2"><div><label class="f" for="mf-qty">Quantité</label><input id="mf-qty" class="in" type="number" min="1" step="1" value="${m?esc(m.qty):1}" inputmode="numeric"></div><div><label class="f" for="mf-date">Date</label><input id="mf-date" class="in" type="date" value="${m?esc(m.date||today()):today()}"></div></div>
+  <label class="f" for="mf-motif">Motif</label><select id="mf-motif" class="in">${motifs.map(x=>`<option ${m&&x===m.motif?"selected":""}>${esc(x)}</option>`).join("")}</select>
+  <label class="f" for="mf-note">Note</label><input id="mf-note" class="in" value="${m?esc(m.note||""):""}">
+  <button class="btn" style="width:100%;margin-top:14px" type="submit">${m?"Enregistrer la correction":"Enregistrer"}</button></form>
+  ${m?`<button class="btn ghost" style="width:100%;margin-top:10px;color:var(--bad)" data-act="delmvt" data-id="${esc(id)}">Supprimer ce mouvement</button>`:""}`);
 }
+function mvtsList(list){ return `<div class="list">${list.map(([id,m])=>{const p=BYCODE.get(String(m.code||"").toUpperCase())||{}; const sign=m.type==="Entrée"||m.type==="Retour expo"?"+":"−";
+  return `<button class="row" data-act="editmvt" data-id="${esc(id)}"><span class="grow"><span class="t1">${isPersoMvt(m)?"Conso perso":esc(MVT_LBL[m.type]||m.type)} · ${sign}${nb(m.qty)}</span><br><span class="t2">${fdate(m.date)}${m.motif?" · "+esc(m.motif):""}${m.note?" · "+esc(m.note):""}</span></span><span class="t2" aria-hidden="true">Modifier ›</span></button>`;}).join("")}</div>`; }
 
 /* ---------- écritures ---------- */
 async function write(path, data, merge=false){
@@ -1183,6 +1201,9 @@ document.addEventListener("click", async e=>{
   if(act==="expoend"){ sheetMvt("Fin d'expo", a.dataset.code); return; }
   if(act==="sortie"){ sheetMvt("Sortie", a.dataset.code); return; }
   if(act==="perso"){ sheetMvt("Perso", a.dataset.code); return; }
+  if(act==="editmvt"){ sheetMvt(null, null, a.dataset.id); return; }
+  if(act==="delmvt"){ const id=a.dataset.id; if(a.dataset.confirm!=="1"){ a.dataset.confirm="1"; a.textContent="Confirmer la suppression"; return; } a.disabled=true;
+    try{ await S.db.doc("mvts/"+id).delete(); closeSheet(); toast("Mouvement supprimé : le stock est recalculé."); }catch(err){ a.disabled=false; toast("Suppression impossible, réessaie."); } return; }
   if(act==="mfpick"){ $("#mf-code").value=a.dataset.code; $("#mf-res").innerHTML=""; return; }
   if(act==="seuil"){ const code=a.dataset.code; const s=S.stock.get(code)||{depart:0};
     openSheet(`<div class="sheet-head"><h2 style="margin:0">Seuil d'alerte · ${esc(code)}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div><p class="note">Le produit passe en « Stock bas » quand il en reste ce nombre ou moins.</p><form id="sform" data-code="${esc(code)}"><input id="sf-v" class="in" type="number" min="0" step="1" value="${Number(s.seuil)||0}" inputmode="numeric"><button class="btn" style="width:100%;margin-top:12px" type="submit">Enregistrer</button></form>`); return; }
@@ -1274,6 +1295,8 @@ document.addEventListener("click", async e=>{
     try{ await write("mvts/"+uid("m"),{date:today(),code,type:"Entrée",qty:Number(m.qty)||1,motif:m.offert?"Cadeau Chogan (offert)":"Réception commande Chogan",cmd:m.cmd||null,note:m.offert?"Offert par Chogan, sans points":"Depuis le mémo de commande",created:new Date().toISOString()}); if(!S.stock.has(code)) await write("stock/"+code,{depart:0,seuil:0}); await S.db.doc("memo/"+a.dataset.id).delete(); toast((Number(m.qty)||1)+" × "+((BYCODE.get(code)||{}).n||code)+" ajouté au stock."); }catch(err){ a.disabled=false; } return; }
   if(act==="prepline"){ const v=S.ventes.get(a.dataset.id); if(!v) return; a.disabled=true; await write("ventes/"+a.dataset.id,{prepOk:!v.prepOk},true); return; }
   if(act==="expjson"){ exportJSON(a); return; }
+  if(act==="saveprofil"){ const d={}; for(const [k] of PF){ const e=$("#pf-"+k); if(e) d[k]=e.value.trim(); } if(!d.prenom&&!d.nom){ toast("Indique au moins ton prénom."); return; }
+    a.disabled=true; Object.assign(MOI,d); applyBrand(); try{ await write("config/profil",d); toast("Profil enregistré ✓"); S.view="accueil"; render(); }catch(err){ toast("Enregistrement impossible, réessaie."); } a.disabled=false; return; }
   if(act==="fblogout"){ if(window.fbLogout) window.fbLogout(); return; }
   if(act==="relmsg"){ const t=a.dataset.t; S.relMsg={id:a.dataset.id, from:a.dataset.from||"", k:t==="sat"?"sat":t==="reach"?"reach":t==="anniv"?"anniv":"nouv"}; sheetRelMsg(); return; }
   if(act==="relmsgk"){ if(S.relMsg){ S.relMsg.k=a.dataset.k; sheetRelMsg(); } return; }
@@ -1294,7 +1317,7 @@ document.addEventListener("click", async e=>{
   if(act==="relcfg"){ openSheet(`<div class="sheet-head"><h2 style="margin:0">Réglages des relances</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
     <form id="cfgform"><label class="f" for="cg-start">Prendre en compte les commandes à partir du</label><input id="cg-start" class="in" type="date" value="${S.cfg.start}">
     <div class="grid2"><div><label class="f" for="cg-j1">Appel satisfaction (jours)</label><input id="cg-j1" class="in" type="number" min="1" value="${S.cfg.j1}"></div><div><label class="f" for="cg-j2">Relance réachat (jours)</label><input id="cg-j2" class="in" type="number" min="1" value="${S.cfg.j2}"></div></div>
-    <label class="f" for="cg-avis" style="margin-top:10px">Lien pour laisser un avis Google (Bulle d'Éclats)</label><input id="cg-avis" class="in" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(S.cfg.avis||"")}">
+    <label class="f" for="cg-avis" style="margin-top:10px">Lien pour laisser un avis Google</label><input id="cg-avis" class="in" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(S.cfg.avis||"")}">
     <p class="note">Sur Google Maps ou ta fiche d'établissement Google : « Demander des avis » → copie le lien et colle-le ici. Il sera ajouté aux messages de satisfaction.</p>
     <button class="btn" style="width:100%;margin-top:14px" type="submit">Enregistrer</button></form>`); return; }
   if(act==="vente"){ const v=S.ventes.get(a.dataset.id); if(!v) return; const p=BYCODE.get(String(v.code||"").toUpperCase())||{};
@@ -1404,10 +1427,11 @@ document.addEventListener("submit", async e=>{
       const code=$("#mf-code").value.trim().toUpperCase(); const p=BYCODE.get(code);
       if(!p){ toast("Code inconnu : choisis le produit dans la liste."); btn.disabled=false; return; }
       const qty=parseInt($("#mf-qty").value,10); if(!(qty>0)){ toast("Quantité invalide."); btn.disabled=false; return; }
-      const ty=f.dataset.type; if(ty==="Exposition" && qty>(CALC.avail.get(code)||0)){ toast("Tu n'en as que "+(CALC.avail.get(code)||0)+" en stock disponible."); btn.disabled=false; return; }
+      const ty=f.dataset.id?"":f.dataset.type; if(ty==="Exposition" && qty>(CALC.avail.get(code)||0)){ toast("Tu n'en as que "+(CALC.avail.get(code)||0)+" en stock disponible."); btn.disabled=false; return; }
       if((ty==="Retour expo"||ty==="Fin d'expo") && qty>(CALC.expo.get(code)||0)){ toast("Il n'y en a que "+(CALC.expo.get(code)||0)+" en exposition."); btn.disabled=false; return; }
       if(!S.stock.has(code)) await write("stock/"+code,{depart:0,seuil:0});
       f.dataset.motifSaved=$("#mf-motif").value;
+      if(f.dataset.id){ const old=S.mvts.get(f.dataset.id)||{}; await write("mvts/"+f.dataset.id, {...old, date:$("#mf-date").value, code, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), modifie:new Date().toISOString()}); closeSheet(); toast("Correction enregistrée : le stock est recalculé."); btn.disabled=false; return; }
       await write("mvts/"+uid("m"), {date:$("#mf-date").value, code, type:f.dataset.type, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), created:new Date().toISOString()});
       closeSheet(); toast(({"Entrée":"+"+qty+" en stock"+(p.pt&&/commande chogan/i.test(f.dataset.motifSaved||"")?" (+"+nb(Math.round(p.pt*qty*100)/100)+" pts)":"")+" · ","Exposition":qty+" mis en exposition · ","Retour expo":qty+" remis en stock · ","Fin d'expo":qty+" sorti de l'exposition · "}[f.dataset.type]||"−"+qty+" · ")+p.n);
     }
@@ -1464,7 +1488,7 @@ document.addEventListener("submit", async e=>{
 });
 
 /* ---------- données ---------- */
-render();
+applyBrand(); render();
 (async ()=>{
   const timer=setTimeout(()=>{ if(Object.keys(S.loaded).length<4) $("#sync").textContent="Données injoignables pour l'instant…"; },10000);
   const db = window.claude ? await window.claude.use("db") : (window.fbDb ? await window.fbDb() : null);
@@ -1473,6 +1497,7 @@ render();
   db.doc("config/events").onSnapshot(d=>{ S.evSeeded=!!d.exists; maybeSeedEvents(); }, ()=>{});
   db.collection("events").onSnapshot(q=>{ S.events=new Map(q.docs.map(d=>[d.id,d.data()])); S.evLoaded=!q.metadata?.fromCache; if(!S.cart.client&&!S.cart.lines.length&&!S.cart.salon){ S.cart.salon=salonToday(); } maybeSeedEvents(); render(); }, ()=>{});
   setTimeout(flushPending,1500);
+  db.doc("config/profil").onSnapshot(d=>{ if(d.exists){ Object.assign(MOI,d.data()); S.profilOk=true; } else S.profilOk=!APP.generic; applyBrand(); render(); }, ()=>{});
   db.doc("config/fidelite").onSnapshot(d=>{ if(d.exists) S.fidCfg={...S.fidCfg,...d.data()}; compute(); render(); }, ()=>{});
   db.doc("config/objectifs").onSnapshot(d=>{ if(d.exists) S.obj={...S.obj,...d.data()}; render(); }, ()=>{});
   db.doc("config/relances").onSnapshot(d=>{ if(d.exists) S.cfg={...S.cfg,...d.data()}; compute(); render(); }, ()=>{});
