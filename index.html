@@ -668,6 +668,19 @@ function sheetCof(id){
   <button class="btn" style="width:100%;margin-top:12px" data-act="savecof">Enregistrer le coffret</button>`);
 }
 const NIVEAUX=["Conseillère","Junior Leader","Senior Leader","Leader","Executive Leader","Diamond"];
+const CHECK_STEPS=["Affiche bienvenue","Activation application","Groupe équipe WhatsApp","Présenter sur l'application","Visio de démarrage","Explication de l'application (rapide)","Bon de commande / liste de parfums","Coaching privé","Formation","Liste de noms (30)","Groupe à 3 (2 pers.)","Prise de contact 1","Prise de contact 2","Prise de contact 3","Prise de contact 4"];
+const checkSteps=()=>Array.isArray(S.cfg.checkSteps)&&S.cfg.checkSteps.length?S.cfg.checkSteps:CHECK_STEPS;
+const checkDone=c=>{ const ch=c&&c.check||{}; return checkSteps().filter((_,i)=>ch[i+1]).length; };
+function sheetCheckEdit(){ openSheet(`<div class="sheet-head"><h2 style="margin:0">Étapes de la check-list</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
+  <p class="note">Une étape par ligne, dans l'ordre. Elles s'appliquent à toute l'équipe. Les cases déjà cochées gardent leur numéro.</p>
+  <form id="ckform"><textarea id="ck-steps" class="in" rows="16" style="font-size:15px;line-height:1.5">${esc(checkSteps().join("\n"))}</textarea>
+  <div class="btns" style="margin-top:12px"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-act="ckreset">Revenir aux étapes d'origine</button></div></form>`); }
+function checklistCard(id,c){ const st=checkSteps(), ch=c.check||{}, n=checkDone(c), pc=Math.round(n/st.length*100);
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div class="t1">Check-list de démarrage</div><b style="color:${n===st.length?"var(--ok)":"var(--bord)"}">${n}/${st.length}</b></div>
+  <div style="width:100%;height:8px;background:var(--line);border-radius:99px;margin:8px 0 10px;overflow:hidden"><span style="display:block;height:100%;width:${pc}%;background:${n===st.length?"var(--ok)":"var(--btn)"}"></span></div>
+  <div class="grid2" style="margin-bottom:8px"><div><span class="t2">Arrivée le</span><br><b>${c.inscription?fdate(c.inscription):"—"}</b></div><div><label class="t2" for="ck-mar">Marraine / parrain</label><input id="ck-mar" class="in" data-id="${esc(id)}" value="${esc(c.marraine||"")}" placeholder="${esc(MOI.prenom||"")}" style="padding:6px 8px"></div></div>
+  <div class="list" style="margin:0">${st.map((t,i)=>{ const d=ch[i+1]; return `<button class="row" data-act="ckstep" data-id="${esc(id)}" data-i="${i+1}" aria-pressed="${!!d}" style="padding:8px 10px"><span style="width:26px;height:26px;border-radius:7px;border:2px solid var(--bord);display:flex;align-items:center;justify-content:center;flex:none;${d?"background:var(--btn);color:var(--btn-ink);border-color:var(--btn)":""}" aria-hidden="true">${d?"✓":""}</span><span class="grow"><span class="t1" style="font-weight:600;${d?"opacity:.7":""}"><span style="color:var(--or);font-weight:800;margin-right:6px">${i+1}</span>${esc(t)}</span>${d?`<br><span class="t2">fait le ${fdate(d)}</span>`:""}</span></button>`; }).join("")}</div>
+  <p class="note" style="margin-bottom:0">Appuie sur une étape pour la cocher (la date est notée) ou la décocher. Les étapes se modifient dans Mon équipe → « Étapes de la check-list ».</p></div>`; }
 const STEQ=[["Conseillère","Conseillère","Vend et parraine"],["Client Insider","Client Insider","Achète avec les avantages Insider"],["Cliente simple","Cliente simple","Achète sans être conseillère"]];
 const stEq=c=>(c&&c.statutEq)||"Conseillère";
 const stEqTag=c=>stEq(c)==="Conseillère"?"":`<span class="tag ${stEq(c)==="Client Insider"?"ose":""}">${esc(stEq(c))}</span>`;
@@ -697,9 +710,9 @@ function vEquipe(){
   <div class="tiles" style="grid-template-columns:repeat(3,1fr)"><div class="tile"><b style="color:var(--bord)">${nb(so)}</b><span>Points solo · ${esc(moisLabel(m))}</span></div><div class="tile"><b style="color:var(--or)">${nb(eq)}</b><span>Points équipe</span></div><div class="tile"><b>${nb(Math.round((so+eq)*100)/100)}</b><span>Total${e1!=null?` · ${e1>=0?"+":""}${e1} % vs mois dernier`:""}</span></div></div>
   <div class="sect" style="display:flex;justify-content:space-between;align-items:center">Évolution mois par mois<button class="btn small sec" data-act="ptsmonth">Saisir les points</button></div>${teamChart()}
   <p class="note">Les points solo sont calculés à partir de tes commandes Chogan enregistrées dans l'appli ; tu peux les remplacer par le chiffre officiel de ton espace Chogan avec « Saisir les points ». Les points équipe se saisissent par consultant(e), chaque mois.</p>
-  <div class="sect">Mes consultants · ${team.length}</div>${(()=>{ const n=k=>team.filter(([,c])=>stEq(c)===k).length; const a=n("Client Insider"), b=n("Cliente simple"); return a||b?`<p class="note" style="margin-top:0">${n("Conseillère")} conseillère${n("Conseillère")>1?"s":""}${a?" · "+a+" Client Insider":""}${b?" · "+b+" cliente"+(b>1?"s":"")+" simple"+(b>1?"s":""):""}</p>`:""; })()}`;
+  <div class="sect" style="display:flex;justify-content:space-between;align-items:center;gap:8px">Mes consultants · ${team.length}<button class="btn small ghost" data-act="ckedit">Étapes de la check-list</button></div>${(()=>{ const n=k=>team.filter(([,c])=>stEq(c)===k).length; const a=n("Client Insider"), b=n("Cliente simple"); return a||b?`<p class="note" style="margin-top:0">${n("Conseillère")} conseillère${n("Conseillère")>1?"s":""}${a?" · "+a+" Client Insider":""}${b?" · "+b+" cliente"+(b>1?"s":"")+" simple"+(b>1?"s":""):""}</p>`:""; })()}`;
   if(!team.length) return h+`<div class="card empty">Ajoute tes filleul(e)s avec « + Consultant(e) ».</div>`;
-  return h+`<div class="list">${team.map(([id,c])=>{ const v=(c.pts||{})[m]; return `<button class="row" data-act="cons" data-id="${esc(id)}"><span class="avatar">${esc(((c.prenom||"")[0]||"")+((c.nom||"")[0]||"")).toUpperCase()}</span><span class="grow"><span class="t1">${esc([c.prenom,c.nom].filter(Boolean).join(" "))}</span><br><span class="t2">${stEq(c)==="Conseillère"?esc(c.niveau||"Conseillère"):"Ancienne conseillère"}${c.inscription?" · depuis le "+fdate(c.inscription):""}${c.actif===false?" · inactif(ve)":""}</span>${stEqTag(c)?`<span class="tags">${stEqTag(c)}</span>`:""}</span><span class="right"><b style="color:var(--or)">${v!=null&&v!==""?nb(v)+" pts":"—"}</b><br><span class="t2">ce mois</span></span></button>`; }).join("")}</div>`;
+  return h+`<div class="list">${team.map(([id,c])=>{ const v=(c.pts||{})[m]; return `<button class="row" data-act="cons" data-id="${esc(id)}"><span class="avatar">${esc(((c.prenom||"")[0]||"")+((c.nom||"")[0]||"")).toUpperCase()}</span><span class="grow"><span class="t1">${esc([c.prenom,c.nom].filter(Boolean).join(" "))}</span><br><span class="t2">${stEq(c)==="Conseillère"?esc(c.niveau||"Conseillère"):"Ancienne conseillère"}${c.inscription?" · depuis le "+fdate(c.inscription):""}${c.actif===false?" · inactif(ve)":""}</span><span class="tags">${stEqTag(c)}${checkDone(c)<checkSteps().length?`<span class="tag">Démarrage ${checkDone(c)}/${checkSteps().length}</span>`:`<span class="tag neu">Démarrage ✓</span>`}</span></span><span class="right"><b style="color:var(--or)">${v!=null&&v!==""?nb(v)+" pts":"—"}</b><br><span class="t2">ce mois</span></span></button>`; }).join("")}</div>`;
 }
 function teamOfClient(cid){ for(const [tid,t] of S.team) if(t.clientId===cid) return tid; return null; }
 function sheetCons(id, fromClient){ const cl=fromClient?S.clients.get(fromClient)||{}:null;
@@ -715,6 +728,7 @@ function sheetCons(id, fromClient){ const cl=fromClient?S.clients.get(fromClient
   <button class="btn" style="width:100%;margin-top:12px" type="submit">Enregistrer</button></form>`); }
 function sheetConsView(id){ const c=S.team.get(id); if(!c) return; const ms=monthsBack(12).filter(m=>m>="2026-01").reverse();
   openSheet(`<div class="sheet-head"><div><h2 style="margin:0">${esc([c.prenom,c.nom].filter(Boolean).join(" "))}</h2><div class="t2">${esc(c.niveau||"Conseillère")} · ${esc(c.lignee||"Ma filleule directe")}</div>${stEqTag(c)?`<span class="tags">${stEqTag(c)}</span>`:""}</div><button class="x" data-act="close" aria-label="Fermer">×</button></div>
+  ${checklistCard(id,c)}
   <div class="card"><div class="t1" style="margin-bottom:4px">Statut chez Chogan</div><p class="note" style="margin-top:0">Elle reste dans ton équipe quel que soit son statut.</p>
   <div class="chips" role="group" aria-label="Statut chez Chogan">${STEQ.map(([k,l])=>`<button type="button" class="chip" data-act="steq" data-id="${esc(id)}" data-s="${esc(k)}" aria-pressed="${stEq(c)===k}">${esc(l)}</button>`).join("")}</div>
   ${(c.statutHist||[]).length?`<p class="t2" style="margin:8px 0 0">${(c.statutHist||[]).slice(-4).reverse().map(h=>fdate(h.d)+" : "+esc(h.s)).join(" · ")}</p>`:""}</div>
@@ -1328,6 +1342,11 @@ document.addEventListener("click", async e=>{
     try{ await S.db.doc("clients/"+id).delete(); const p=getPending(); if(p[id]){ delete p[id]; setPending(p); } closeSheet(); toast("Fiche de "+clientName(c)+" supprimée."); }catch(err){ a.disabled=false; toast("Suppression impossible, réessaie."); } return; }
   if(act==="newcons"){ sheetCons(null); return; }
   if(act==="joinedteam"){ sheetCons(null, a.dataset.id); return; }
+  if(act==="ckstep"){ const id=a.dataset.id, i=a.dataset.i, c=S.team.get(id); if(!c) return; const ch={...(c.check||{})}; if(ch[i]) delete ch[i]; else ch[i]=today();
+    const mar=$("#ck-mar"); const extra=mar&&mar.value.trim()!==(c.marraine||"")?{marraine:mar.value.trim()}:{};
+    await write("equipe/"+id,{...c, ...extra, check:ch}); setTimeout(()=>{ const y=document.querySelector(".sheet")?.scrollTop; sheetConsView(id); const sh=document.querySelector(".sheet"); if(sh&&y!=null) sh.scrollTop=y; },120); return; }
+  if(act==="ckedit"){ sheetCheckEdit(); return; }
+  if(act==="ckreset"){ const t=$("#ck-steps"); if(t) t.value=CHECK_STEPS.join("\n"); return; }
   if(act==="newee"){ sheetEE(a.dataset.col, a.dataset.id); return; }
   if(act==="eeset"){ a.disabled=true; try{ await write(a.dataset.col+"/"+a.dataset.eid,{statut:a.dataset.s, fait:today()},true); toast("C'est noté."); const cid=((a.dataset.col==="echantillons"?S.ech:S.envies).get(a.dataset.eid)||{}).client; if(document.querySelector(".sheet")&&cid) setTimeout(()=>sheetClient(cid),200); }catch(err){ a.disabled=false; } return; }
   if(act==="eedel"){ if(a.dataset.confirm!=="1"){ a.dataset.confirm="1"; a.textContent="Supprimer ?"; return; } const cid=((a.dataset.col==="echantillons"?S.ech:S.envies).get(a.dataset.eid)||{}).client; a.disabled=true; try{ await S.db.doc(a.dataset.col+"/"+a.dataset.eid).delete(); toast("Supprimé."); if(document.querySelector(".sheet")&&cid) setTimeout(()=>sheetClient(cid),200); }catch(err){ a.disabled=false; } return; }
@@ -1556,7 +1575,8 @@ document.addEventListener("input", e=>{
   if(id==="sale-note"){ S.cart.note=e.target.value; saveDraft(); return; }
   if(id==="mf-code"){ const r=searchProducts(e.target.value,6); $("#mf-res").innerHTML=r.length&&!BYCODE.get(e.target.value.toUpperCase())?`<div class="list" style="margin-top:6px">${r.map(p=>productRow(p,"mfpick")).join("")}</div>`:""; }
 });
-document.addEventListener("change", e=>{ if(e.target.id==="imp-file"&&e.target.files&&e.target.files[0]){ importJSON(e.target.files[0]); e.target.value=""; return; }
+document.addEventListener("change", e=>{ if(e.target.id==="ck-mar"){ const id=e.target.dataset.id, c=S.team.get(id); if(c) write("equipe/"+id,{...c, marraine:e.target.value.trim()}); return; }
+  if(e.target.id==="imp-file"&&e.target.files&&e.target.files[0]){ importJSON(e.target.files[0]); e.target.value=""; return; }
   if(e.target.id==="sale-statut") S.cart.statut=e.target.value;
   if(e.target.id==="pt-m" && e.target.value) sheetPts(e.target.value);
   if(e.target.id==="sale-livr"){ S.cart.livraison=e.target.value; render(); }
@@ -1611,6 +1631,8 @@ document.addEventListener("submit", async e=>{
       if(exact){ await write("memo/"+uid("o"),{code:exact.c.toUpperCase(),qty:1,created:new Date().toISOString()}); }
       else await write("memo/"+uid("o"),{label:t,qty:1,created:new Date().toISOString()});
       S.q4=""; render(); toast("Ajouté au mémo."); return; }
+    if(f.id==="ckform"){ const st=$("#ck-steps").value.split("\n").map(x=>x.trim()).filter(Boolean); if(!st.length){ toast("Indique au moins une étape."); return; }
+      await write("config/relances",{...S.cfg, checkSteps:st}); closeSheet(); toast("Check-list enregistrée."); return; }
     if(f.id==="eeform"){ const raw=$("#ee-p").value.trim(); const code0=raw.split(" · ")[0]; const p=resolveProd(code0)||resolveProd(raw); const col=f.dataset.col, cid=f.dataset.client;
       const d={client:cid, code:p?p.c:"", label:p?p.n:raw, date:$("#ee-d").value||today(), note:$("#ee-n").value.trim(), statut:col==="echantillons"?"donné":"attente", created:new Date().toISOString()};
       await write(col+"/"+uid(col==="echantillons"?"e":"w"), d); toast(col==="echantillons"?"Échantillon noté.":"Envie notée."); sheetClient(cid); return; }
@@ -1645,7 +1667,7 @@ document.addEventListener("submit", async e=>{
     if(f.id==="objform"){ await write("config/objectifs",{clientes:parseInt($("#ob-c").value,10)||0, commandes:parseInt($("#ob-o").value,10)||0, recrues:parseInt($("#ob-r").value,10)||0}); closeSheet(); toast("Objectifs enregistrés."); }
     if(f.id==="cfgform"){
       const cfg={start:$("#cg-start").value||S.cfg.start, j1:parseInt($("#cg-j1").value,10)||15, j2:parseInt($("#cg-j2").value,10)||60, jEch:parseInt($("#cg-jech").value,10)||5, avis:$("#cg-avis").value.trim()};
-      await write("config/relances", cfg); closeSheet(); toast("Réglages enregistrés.");
+      await write("config/relances", {...S.cfg, ...cfg}); closeSheet(); toast("Réglages enregistrés.");
     }
     if(f.id==="vform"){
       await write("ventes/"+f.dataset.id, {statut:$("#vf-statut").value, paye:$("#vf-paye").checked}, true); closeSheet(); toast("Statut mis à jour.");
