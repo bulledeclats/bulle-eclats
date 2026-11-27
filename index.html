@@ -252,7 +252,7 @@ function saveDraft(){ try{ const C=S.cart; if(C && (C.client||C.lines.length)) l
 function loadDraft(){ try{ const d=JSON.parse(localStorage.getItem("be-draft")||"null"); if(d && Array.isArray(d.lines) && (d.client||d.lines.length)) return {...newCart(),...d,restored:true}; }catch(e){} return null; }
 function newCart(){ const d=today(); let sal=""; try{ sal=salonToday(); }catch(_e){ const e=EV_SEED.find(([,e])=>e.debut<=d&&d<=e.fin); sal=e?e[1].nom:""; } try{ const l=JSON.parse(localStorage.getItem("be-salon")||"null"); if(l&&l.d===d&&l.s) sal=l.s; }catch(e){} return {client:null, lines:[], date:d, statut:"En cours", salon:sal, livraison:LIVR[0], paiement:PAIE[0], acompte:"", note:"", rgpd:null}; }
 const PROFILS=["Parfums","Cosmétiques","Maquillage","Produits ménagers","Compléments","Maison & ambiance","Recrutement"];
-const S = { team:new Map(), ptsMois:new Map(), coffrets:new Map(), orders:new Map(), fidCfg:{n:10, cadeau:"un cadeau au choix", start:""}, events:new Map(), evSeeded:null, obj:{clientes:5,commandes:20,recrues:3}, cfg:{start:APP.start,j1:15,j2:60}, calMonth:today().slice(0,7), relDay:today(), cliFilter:"toutes", stock:new Map(), produits:new Map(), memo:new Map(), q4:"", clients:new Map(), ventes:new Map(), mvts:new Map(), loaded:{}, db:null, view:"accueil", q:"", stockFilter:"tous", suiviFilter:"cours", bestP:"tout", bestT:"tout", cart:loadDraft()||newCart(), readOnly:false };
+const S = { team:new Map(), ptsMois:new Map(), coffrets:new Map(), orders:new Map(), fidCfg:{n:10, cadeau:"un cadeau au choix", start:""}, events:new Map(), ech:new Map(), envies:new Map(), evSeeded:null, obj:{clientes:5,commandes:20,recrues:3}, cfg:{start:APP.start,j1:15,j2:60}, calMonth:today().slice(0,7), relDay:today(), cliFilter:"toutes", stock:new Map(), produits:new Map(), memo:new Map(), q4:"", clients:new Map(), ventes:new Map(), mvts:new Map(), loaded:{}, db:null, view:"accueil", q:"", stockFilter:"tous", suiviFilter:"cours", bestP:"tout", bestT:"tout", cart:loadDraft()||newCart(), readOnly:false };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[’'`]/g," ").replace(/\s+/g," ").trim();
@@ -334,6 +334,46 @@ function annivInfo(c){ const a=parseAnniv(c.anniv); if(!a||!a.m||!a.d||a.m>12||a
   return {a, occ, days, mois, used, age:a.y?y-a.y:null, label:String(a.d).padStart(2,"0")+"/"+String(a.m).padStart(2,"0")}; }
 function annivMsg(c){ const i=annivInfo(c); const moisNom=i?new Date(i.occ+"T12:00").toLocaleDateString("fr-FR",{month:"long"}):"ce mois-ci";
   return `Joyeux anniversaire ${c.prenom||clientName(c)} ! 🎂\n\nPour fêter ça, je vous offre -10 % sur votre prochaine commande, valable pendant tout le mois de ${moisNom}.\n\nBelle journée,\n${sigName()}${MOI.tel?"\n"+MOI.tel:""}`; }
+const ECH_ST={"donné":["Donné","p-bas"],"relancée":["Relancée","p-bas"],"acheté":["A acheté ✓","p-ok"],"pas intéressée":["Pas intéressée","p-none"]};
+const ENV_ST={"attente":["En attente","p-bas"],"prévenue":["Prévenue","p-bas"],"achetée":["Achetée ✓","p-ok"]};
+function eeRow(col,eid,e,withClient){ const isE=col==="echantillons"; const st=(isE?ECH_ST:ENV_ST)[e.statut||(isE?"donné":"attente")]||["",""]; const c=S.clients.get(e.client)||{};
+  const dispo=!isE&&e.code&&(CALC.avail.get(String(e.code).toUpperCase())||0)>0;
+  const acts=isE?[["acheté","A acheté"],["pas intéressée","Pas intéressée"]]:[["prévenue","Prévenue"],["achetée","Achetée"]];
+  return `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow">${withClient?`<button class="t1" data-act="client" data-id="${esc(e.client)}" style="all:unset;cursor:pointer;font-weight:700;text-decoration:underline">${esc(clientName(c))}</button><br>`:""}<span class="${withClient?"t2":"t1"}">${esc(prodLabel(e))}${e.code?` <span class="code" style="font-size:11px">${esc(e.code)}</span>`:""}</span><br><span class="t2">${isE?"Donné le ":"Demandé le "}${fdate(e.date)}${e.note?" · "+esc(e.note):""}</span>
+    <span class="tags"><span class="pill ${st[1]}">${st[0]}</span>${dispo&&(e.statut||"attente")==="attente"?`<span class="tag neu">En stock !</span>`:""}</span></span>
+    <span class="btns" style="width:100%;justify-content:flex-end;margin-top:6px">${acts.filter(([k])=>k!==(e.statut||"")).map(([k,l])=>`<button class="btn small ${k==="acheté"||k==="achetée"?"sec":"ghost"}" data-act="eeset" data-col="${col}" data-eid="${esc(eid)}" data-s="${esc(k)}">${l}</button>`).join("")}${(isE&&(e.statut||"donné")!=="acheté")||(!isE&&dispo&&(e.statut||"attente")==="attente")?`<button class="btn small ghost" data-act="relmsg" data-id="${esc(e.client)}" data-t="${isE?"ech":"envie"}" data-lbl="${esc(prodLabel(e))}">Message</button>`:""}<button class="btn small ghost" data-act="eedel" data-col="${col}" data-eid="${esc(eid)}" aria-label="Supprimer">✕</button></span></div>`; }
+function echEnvSection(id){ const ech=[...S.ech.entries()].filter(([,e])=>e.client===id).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date)));
+  const env=[...S.envies.entries()].filter(([,e])=>e.client===id).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date)));
+  return `<div class="sect" style="display:flex;justify-content:space-between;align-items:center;gap:8px">🧪 Échantillons<button class="btn small sec" data-act="newee" data-col="echantillons" data-id="${esc(id)}">+ Échantillon</button></div>
+  ${ech.length?`<div class="list">${ech.map(([k,e])=>eeRow("echantillons",k,e,false)).join("")}</div>`:`<p class="note" style="margin-top:0">Aucun échantillon donné. Note-les pour qu'on te rappelle de la relancer.</p>`}
+  <div class="sect" style="display:flex;justify-content:space-between;align-items:center;gap:8px">💝 Ses envies<button class="btn small sec" data-act="newee" data-col="envies" data-id="${esc(id)}">+ Envie</button></div>
+  ${env.length?`<div class="list">${env.map(([k,e])=>eeRow("envies",k,e,false)).join("")}</div>`:`<p class="note" style="margin-top:0">Un produit qu'elle aimerait ? Note-le : tu seras prévenue dès qu'il est en stock.</p>`}`; }
+function sheetEE(col,cid){ const isE=col==="echantillons"; const c=S.clients.get(cid)||{};
+  openSheet(`<div class="sheet-head"><h2 style="margin:0">${isE?"🧪 Échantillon donné":"💝 Nouvelle envie"}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
+  <p class="note">${esc(clientName(c))} · ${isE?"tu seras rappelée de la relancer "+(Number(S.cfg.jEch)||5)+" jours après.":"tu seras prévenue dès que le produit est en stock."}</p>
+  <form id="eeform" data-col="${col}" data-client="${esc(cid)}"><label class="f" for="ee-p">Produit (code ou nom)</label><input id="ee-p" class="in" list="ee-list" autocomplete="off" placeholder="Ex. : 042W, Bonheur, Sauvage…" required>
+  <datalist id="ee-list">${CAT.map(p=>`<option value="${esc(p.c)} · ${esc(p.n)}">`).join("")}</datalist>
+  <div class="grid2"><div><label class="f" for="ee-d">Date</label><input id="ee-d" class="in" type="date" value="${today()}"></div><div><label class="f" for="ee-n">Note</label><input id="ee-n" class="in" placeholder="${isE?"Ex. : au salon":"Ex. : pour Noël"}"></div></div>
+  <button class="btn" style="width:100%;margin-top:14px" type="submit">Enregistrer</button></form>`); }
+function vEchEnv(){ const t=today(); const jE=Number(S.cfg.jEch)||5;
+  const ech=[...S.ech.entries()].filter(([,e])=>S.clients.has(e.client)).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date)));
+  const env=[...S.envies.entries()].filter(([,e])=>S.clients.has(e.client)).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date)));
+  const isDispo=e=>e.code&&(CALC.avail.get(String(e.code).toUpperCase())||0)>0;
+  const envDispo=env.filter(([,e])=>(e.statut||"attente")==="attente"&&isDispo(e)), envAtt=env.filter(([,e])=>(e.statut||"attente")==="attente"&&!isDispo(e)), envDone=env.filter(([,e])=>(e.statut||"attente")!=="attente").slice(0,10);
+  const echDue=ech.filter(([,e])=>(e.statut||"donné")==="donné"&&addDays(e.date||t,jE)<=t), echWait=ech.filter(([,e])=>(e.statut||"donné")==="donné"&&addDays(e.date||t,jE)>t);
+  const echRel=ech.filter(([,e])=>e.statut==="relancée"), nA=ech.filter(([,e])=>e.statut==="acheté").length;
+  const rate=ech.length?Math.round(nA/ech.length*100):0;
+  const L=(arr,col)=>`<div class="list">${arr.map(([k,e])=>eeRow(col,k,e,true)).join("")}</div>`;
+  return `<h1>Échantillons et envies</h1><p class="note">Ajoute-les depuis la fiche d'une cliente (Clientes → sa fiche → « + Échantillon » ou « + Envie »).</p>
+  <div class="tiles"><div class="tile"><b>${ech.length}</b><span>Échantillons donnés</span></div><div class="tile"><b style="color:var(--ok)">${rate} %</b><span>Transformés en achat</span></div><div class="tile ${envDispo.length?"alert":""}"><b>${envDispo.length}</b><span>Envies en stock</span></div><div class="tile"><b>${envAtt.length}</b><span>Envies en attente</span></div></div>
+  ${envDispo.length?`<div class="sect">💝 À prévenir : le produit est en stock</div>${L(envDispo,"envies")}`:""}
+  ${echDue.length?`<div class="sect">🧪 Échantillons à relancer</div>${L(echDue,"echantillons")}`:""}
+  ${echWait.length||echRel.length?`<div class="sect">🧪 Échantillons en cours</div>${L([...echWait,...echRel],"echantillons")}`:""}
+  ${envAtt.length?`<div class="sect">💝 Envies en attente de stock</div>${L(envAtt,"envies")}`:""}
+  ${envDone.length?`<div class="sect">Envies traitées</div>${L(envDone,"envies")}`:""}
+  ${!ech.length&&!env.length?`<div class="card empty">Rien pour l'instant. Quand tu donnes un échantillon ou qu'une cliente te dit ce qu'elle aimerait, note-le sur sa fiche.</div>`:""}`; }
+function prodLabel(e){ const p=e.code?BYCODE.get(String(e.code).toUpperCase()):null; return p?(p.t==="p"?"parfum "+p.n:p.n):(e.label||e.code||""); }
+function resolveProd(t){ t=String(t||"").trim(); if(!t) return null; const ex=BYCODE.get(t.toUpperCase().replace(/\s/g,"")); if(ex) return ex; const r=searchProducts(t,1); return r&&r[0]?r[0]:null; }
 function computeRelances(ventes){
   const last=new Map();
   for(const v of ventes){ if(v.client && v.date && v.date>=S.cfg.start && v.date>(last.get(v.client)||"")) last.set(v.client,v.date); }
@@ -356,6 +396,9 @@ function computeRelances(ventes){
       out.push({id,t:"anniv",type:"Anniversaire"+(age>0&&age<120?" ("+age+" ans)":""),date:occ});
     }
   }
+  const jE=Number(S.cfg.jEch)||5;
+  for(const [eid,e] of S.ech){ if(!e.client||!S.clients.has(e.client)||(e.statut&&e.statut!=="donné")) continue; out.push({id:e.client,t:"ech",type:"Suivi échantillon",date:addDays(e.date||today(),jE),note:prodLabel(e),eid,from:e.date}); }
+  for(const [eid,e] of S.envies){ if(!e.client||!S.clients.has(e.client)||(e.statut&&e.statut!=="attente")||!e.code) continue; if((CALC&&CALC.avail?CALC.avail.get(String(e.code).toUpperCase()):0)>0) out.push({id:e.client,t:"envie",type:"Envie disponible en stock",date:today(),note:prodLabel(e),eid}); }
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function ptsOf(v){ const st=Number(v.pts)||0; if(st>0) return st; const p=BYCODE.get(String(v.code||"").toUpperCase()); return p&&p.pt!=null?Math.round(p.pt*(Number(v.qty)||0)*100)/100:0; }
@@ -436,7 +479,7 @@ function render(){
   const m=$("#main");
   const keepFocus = document.activeElement && document.activeElement.id;
   const caret = document.activeElement && document.activeElement.selectionStart;
-  m.innerHTML = ({recherche:vRecherche, accueil:vAccueil, vendre:vVendre, stock:vStock, commander:vCommander, chogan:vChogan, suivi:vSuivi, best:vBest, coffrets:vCoffrets, equipe:vEquipe, relances:vRelances, clientes:vClientes, donnees:vDonnees, profil:vProfil})[S.view]();
+  m.innerHTML = ({recherche:vRecherche, accueil:vAccueil, vendre:vVendre, stock:vStock, commander:vCommander, chogan:vChogan, suivi:vSuivi, best:vBest, coffrets:vCoffrets, equipe:vEquipe, relances:vRelances, clientes:vClientes, donnees:vDonnees, profil:vProfil, echenv:vEchEnv})[S.view]();
   if (keepFocus){ const el=document.getElementById(keepFocus); if(el){ el.focus(); try{ el.setSelectionRange(caret,caret);}catch(e){} } }
 }
 const MENU=[["accueil","Tableau de bord",'<rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/>'],
@@ -444,6 +487,7 @@ const MENU=[["accueil","Tableau de bord",'<rect x="3.5" y="3.5" width="7" height
  ["vendre","Bon de commande",'<path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/>'],
  ["suivi","Suivi des commandes",'<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7M12 11v10"/>'],
  ["commander","À commander et mémo",'<path d="M5 6h14M5 12h14M5 18h9"/>'],
+ ["echenv","Échantillons et envies",'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>'],
  ["chogan","Mes commandes Chogan",'<rect x="2.5" y="7" width="12" height="10" rx="1"/><path d="M14.5 10h4l3 3.5V17h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/>'],
  ["coffrets","Mes coffrets",'<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1.5S10 9 12 9c2 0 6 0 6-1.5S14 5 12 9"/>'],
  ["best","Meilleures ventes",'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
@@ -454,7 +498,7 @@ const MENU=[["accueil","Tableau de bord",'<rect x="3.5" y="3.5" width="7" height
  ["profil","Mon profil",'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/><path d="M17 4l3 3"/>'],
  ["donnees","Mes données et sauvegarde",'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>']];
 function fillMenu(){
-  const cnt={chogan:new Set([...S.memo.values()].filter(m=>m.cmd).map(orderKey)).size, commander:CALC.toOrder.length, relances:CALC.relDue, suivi:CALC.ordOpen};
+  const cnt={echenv:CALC.relances.filter(r=>(r.t==="ech"||r.t==="envie")&&r.date<=today()).length, chogan:new Set([...S.memo.values()].filter(m=>m.cmd).map(orderKey)).size, commander:CALC.toOrder.length, relances:CALC.relDue, suivi:CALC.ordOpen};
   $("#menu").innerHTML=MENU.map(([v,l,ic])=>`<button data-go="${v}" ${S.view===v?'aria-current="page"':""}><svg viewBox="0 0 24 24">${ic}</svg>${l}${cnt[v]?`<span class="mdot">${cnt[v]}</span>`:""}</button>`).join("")
    +`<hr><button data-act="newclient"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.5-6 7-6M18 14v6M15 17h6"/></svg>Nouvelle cliente</button>
    <button data-act="newprod"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nouveau produit</button>
@@ -694,8 +738,23 @@ function vRecherche(){
   h+=`<div class="sect">Produits</div>` + (pr.length?`<div class="list">${pr.map(p=>productRow(p)).join("")}</div>`:`<div class="list"><div class="empty">Aucun produit pour « ${esc(q)} ».</div></div>`);
   return h;
 }
+function todayItems(){ const t=today(), w=addDays(t,7); const R=CALC.relances; const it=[];
+  const ev=evList().filter(e=>e.debut<=addDays(t,2)&&e.fin>=t); for(const e of ev) it.push(["📍",e.debut<=t?`Salon aujourd'hui : ${e.nom}`:`Salon ${e.debut===addDays(t,1)?"demain":"le "+fdate(e.debut)} : ${e.nom}`,"relances","",e.debut]);
+  const rel=R.filter(r=>r.date<=t&&["sat","reach","man"].includes(r.t)); if(rel.length) it.push(["📞",`${rel.length} relance${rel.length>1?"s":""} cliente${rel.length>1?"s":""} à faire${rel.some(r=>r.date<t)?" (dont en retard)":""}`,"relances"]);
+  const an=R.filter(r=>r.t==="anniv"&&r.date>=t&&r.date<=w); if(an.length){ const td=an.filter(r=>r.date===t); it.push(["🎂",td.length?`Anniversaire aujourd'hui : ${td.map(r=>clientName(S.clients.get(r.id)||{})).join(", ")}`+(an.length>td.length?` (+${an.length-td.length} cette semaine)`:""):`${an.length} anniversaire${an.length>1?"s":""} cette semaine`,"relances"]); }
+  const ech=R.filter(r=>r.t==="ech"&&r.date<=t); if(ech.length) it.push(["🧪",`${ech.length} échantillon${ech.length>1?"s":""} à relancer`,"echenv"]);
+  const env=R.filter(r=>r.t==="envie"); if(env.length) it.push(["💝",`${env.length} envie${env.length>1?"s":""} de cliente${env.length>1?"s":""} disponible${env.length>1?"s":""} en stock`,"echenv"]);
+  const prep=CALC.orders.filter(o=>o.etape===2).length; if(prep) it.push(["🛍️",`${prep} commande${prep>1?"s":""} à préparer`,"suivi","aprep"]);
+  const liv=CALC.orders.filter(o=>o.etape===3).length; if(liv) it.push(["🚗",`${liv} commande${liv>1?"s":""} prête${liv>1?"s":""} à livrer`,"suivi","pret"]);
+  if(CALC.toOrder.length) it.push(["📝",`${CALC.toOrder.length} produit${CALC.toOrder.length>1?"s":""} à commander chez Chogan pour tes clientes`,"commander"]);
+  const exp=[...(S.orders||new Map()).values()].filter(o=>o.statut==="Expédiée").length; if(exp) it.push(["📦",`${exp} commande${exp>1?"s":""} Chogan en route`,"chogan"]);
+  return it; }
+function todayCard(){ const it=todayItems(); const d=new Date(); const lbl=d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+  return `<div class="card" style="border:2px solid var(--bord)"><div class="t1" style="font-size:17px;margin-bottom:6px">Aujourd'hui · ${esc(lbl)}</div>
+  ${it.length?`<div class="list" style="margin:0">${it.map(([ic,tx,v,sf,day])=>`<button class="row" data-act="goto" data-v="${v}" ${sf?`data-sf="${sf}"`:""} ${day?`data-day="${day}"`:""}><span aria-hidden="true" style="font-size:20px;width:28px;text-align:center">${ic}</span><span class="grow t1" style="font-weight:600">${esc(tx)}</span><span class="t2" aria-hidden="true">›</span></button>`).join("")}</div>`:`<p class="note" style="margin:0">Rien d'urgent aujourd'hui ✨ Profite-en pour prendre des nouvelles d'une cliente ou préparer ton prochain salon.</p>`}</div>`; }
 function vAccueil(){
   let h=`<h1>Tableau de bord</h1>`;
+  if(!(APP.generic&&S.profilOk===false)) h+=todayCard();
   if(APP.generic&&S.profilOk===false) h+=`<div class="card" style="border:2px solid var(--bord)"><div class="t1" style="font-size:18px">Bienvenue dans ${esc(APP.name)} ✨</div><p class="note">Ton carnet de conseillère : clientes, stock, bons de commande, suivi de tes commandes fournisseur, relances et salons. Tout reste privé, sur ton compte.</p><ol class="note" style="padding-left:18px;margin:6px 0 12px"><li>Remplis ton profil (il signe tes récaps et messages).</li><li>Ajoute ton stock depuis l'onglet Stock.</li><li>Crée ton premier bon de commande.</li></ol><button class="btn" data-go="profil">Remplir mon profil</button></div>`;
   {
     const relT=CALC.relances.filter(r=>r.date<=today());
@@ -867,7 +926,7 @@ async function exportExcel(btn){
   btn.disabled=false;
 }
 /* ---------- sauvegarde / transfert ---------- */
-const COLS=[["stock","stock"],["clients","clients"],["ventes","ventes"],["mvts","mvts"],["memo","memo"],["produits","produits"],["coffrets","coffrets"],["chogcmd","orders"],["equipe","team"],["pointsmois","ptsMois"],["events","events"]];
+const COLS=[["stock","stock"],["clients","clients"],["ventes","ventes"],["mvts","mvts"],["memo","memo"],["produits","produits"],["coffrets","coffrets"],["chogcmd","orders"],["equipe","team"],["pointsmois","ptsMois"],["events","events"],["echantillons","ech"],["envies","envies"]];
 function dataDump(){ const out={app:"bulle-eclats",version:1,date:new Date().toISOString(),data:{}};
   for(const [col,key] of COLS){ const m=S[key]; if(!(m instanceof Map)) continue; out.data[col]={}; for(const [id,d] of m){ if(d&&d._pending){ const {_pending,...x}=d; out.data[col][id]=x; } else out.data[col][id]=d; } }
   out.data.config={relances:S.cfg, objectifs:S.obj, fidelite:S.fidCfg, events:{seeded:true}, ...(S.profilOk?{profil:Object.fromEntries(PF.map(([k])=>[k,MOI[k]||""]))}:{})}; return out; }
@@ -906,7 +965,7 @@ function orderCard(o){
     ${(()=>{ const m=orderMeta(o); const bits=[m.salon?(m.salon+(m.venteType?" · "+(m.venteType==="indirecte"?"commande indirecte":"vente directe"):"")):"", isDom(m.livraison)?"Livraison"+(m.port?" (port "+eur(m.port)+")":portPaye(m.livraison)?"":" offerte")+" : "+(c&&adresseOf(c)||"adresse manquante"):m.livraison, !o.paye&&m.acompte>0?"Acompte "+eur(m.acompte)+", reste "+eur(o.total-m.acompte):""].filter(Boolean); return bits.length?`<div class="t2" style="margin-top:6px">${bits.map(esc).join("<br>")}</div>`:""; })()}
     <div style="display:flex;gap:4px;margin:10px 0 4px">${steps}</div><span class="pill ${pill}">${ETAPES[o.etape]}${o.etape===3&&o.prep?" le "+fdate(o.prep):""}</span>${!o.livre&&o.etape<3?(()=>{ const n=o.lines.length, d=o.lines.filter(v=>v.prepOk).length; return `<span class="t2"> · <b style="color:${d===n?"var(--ok)":"var(--ink)"}">${d}/${n} préparé${d>1?"s":""}</b>${o.etape<2?" · coche ce qui est déjà en stock":""}</span>`; })():o.etape===3?`<span class="t2"> · prête à livrer</span>`:""}
     <div style="margin-top:8px">${o.lines.map(v=>{const p=BYCODE.get(String(v.code||"").toUpperCase())||{}; const sh=(CALC.served.get(v.id)||{}).short||0; const okL=v.prepOk||o.etape===3, wait=sh>0&&o.etape<2; const ck=!o.livre?`<button class="x" data-act="prepline" data-id="${esc(v.id)}" ${wait||o.etape===3?"disabled":""} aria-pressed="${!!okL}" aria-label="${v.prepOk?"Décocher":"Cocher"} ${esc(p.n||v.label||"")}" style="width:26px;height:26px;font-size:14px;${okL?"background:var(--nude);color:#fff":wait?"opacity:.35":""}">${okL?"✓":""}</button>`:""; return `<div class="t2" style="display:flex;gap:6px;padding:3px 0;align-items:center">${ck}<span class="code" style="font-size:11px">${esc(v.code||"")}</span><span class="grow" style="${!o.livre&&o.etape<3&&v.prepOk?"text-decoration:line-through;opacity:.6":""}">${nb(v.qty)} × ${esc(p.n||v.label||"")}${v.offert?` <span class="pill p-ok" style="font-size:11px;padding:1px 6px">🎁 offert</span>`:""}${sh>0&&o.etape<2?` · <span style="color:var(--bad)">manque ${nb(sh)}</span>`:""}</span></div>`;}).join("")}</div>
-    <div class="btns" style="margin-top:8px">${next?`<button class="btn small" data-act="${next[1]}" data-key="${esc(o.key)}">${next[0]}</button>`:""}<button class="btn small ghost" data-act="recap" data-key="${esc(o.key)}">Envoyer le récap</button><button class="btn small ghost" data-act="editbon" data-key="${esc(o.key)}">Modifier</button><button class="btn small ghost" data-act="delbon" data-key="${esc(o.key)}" style="color:var(--bad);border-color:var(--bad)">Supprimer</button><button class="btn small ${o.paye?"ghost":"sec"}" data-act="ord-paye" data-key="${esc(o.key)}">${o.paye?"Annuler « payée »":"Marquer payée"}</button>${o.etape>0&&!o.livre?`<button class="btn small ghost" data-act="ord-back" data-key="${esc(o.key)}">Étape précédente</button>`:""}</div>
+    <div class="btns" style="margin-top:8px">${next?`<button class="btn small" data-act="${next[1]}" data-key="${esc(o.key)}">${next[0]}</button>`:""}<button class="btn small ghost" data-act="recap" data-key="${esc(o.key)}">Envoyer le récap</button><button class="btn small ghost" data-act="bonpdf" data-key="${esc(o.key)}">PDF</button><button class="btn small ghost" data-act="editbon" data-key="${esc(o.key)}">Modifier</button><button class="btn small ghost" data-act="delbon" data-key="${esc(o.key)}" style="color:var(--bad);border-color:var(--bad)">Supprimer</button><button class="btn small ${o.paye?"ghost":"sec"}" data-act="ord-paye" data-key="${esc(o.key)}">${o.paye?"Annuler « payée »":"Marquer payée"}</button>${o.etape>0&&!o.livre?`<button class="btn small ghost" data-act="ord-back" data-key="${esc(o.key)}">Étape précédente</button>`:""}</div>
   </div>`;
 }
 function vSuivi(){
@@ -926,13 +985,13 @@ function annivRow(id,c,i){ const tel=String(c.tel||"").replace(/[^\d]/g,"").repl
   return `<div class="row" style="cursor:default;flex-wrap:wrap"><button class="avatar" data-act="client" data-id="${esc(id)}" style="border:0;cursor:pointer" aria-label="Voir la fiche">${esc(initials(c).toUpperCase())}</button><span class="grow"><span class="t1">${esc(clientName(c))}</span><br><span class="t2">le ${i.label}${i.age?" · "+i.age+" ans":""} · ${i.days===0?"<b>aujourd'hui</b>":i.days>0?"dans "+i.days+" jour"+(i.days>1?"s":""):"il y a "+(-i.days)+" jour"+(i.days<-1?"s":"")}</span><br>${i.used?`<span class="pill p-ok">Remise utilisée</span>`:`<span class="pill p-bas">−10 % à offrir</span>`}</span><span class="btns" style="flex-direction:column;gap:6px">${tel?`<a class="btn small sec" style="text-decoration:none" data-ml="1" href="https://wa.me/${tel}?text=${encodeURIComponent(annivMsg(c))}">Souhaiter</a>`:""}<button class="btn small ghost" data-act="sellto" data-id="${esc(id)}">Bon −10 %</button></span></div>`; }
 function relRow(r){
   const c=S.clients.get(r.id)||{}; const late=r.date<today();
-  return `<div class="row" style="cursor:default;flex-wrap:wrap"><button class="avatar" data-act="client" data-id="${esc(r.id)}" style="border:0;cursor:pointer" aria-label="Voir la fiche">${esc(initials(c).toUpperCase())}</button><span class="grow"><span class="t1">${esc(clientName(c))}</span><br><span class="t2">${esc(r.type)} · ${fdate(r.date)}${r.from?" · commande du "+fdate(r.from):""}${r.note?" · "+esc(r.note):""}</span><br><span class="t2">${esc(c.tel||"pas de téléphone")}</span>${tagsHtml(c)}</span><span class="btns" style="flex-direction:column;gap:6px">${late?`<span class="pill p-0">En retard</span>`:""}<button class="btn small sec" data-act="relmsg" data-id="${esc(r.id)}" data-t="${r.t}" data-from="${esc(r.from||"")}">Message</button><button class="btn small" data-act="reldone" data-id="${esc(r.id)}" data-t="${r.t}">Fait</button><button class="btn small ghost" data-act="relmove" data-id="${esc(r.id)}" data-t="${r.t}">Reporter</button></span></div>`;
+  return `<div class="row" style="cursor:default;flex-wrap:wrap"><button class="avatar" data-act="client" data-id="${esc(r.id)}" style="border:0;cursor:pointer" aria-label="Voir la fiche">${esc(initials(c).toUpperCase())}</button><span class="grow"><span class="t1">${esc(clientName(c))}</span><br><span class="t2">${esc(r.type)} · ${fdate(r.date)}${r.from?" · commande du "+fdate(r.from):""}${r.note?" · "+esc(r.note):""}</span><br><span class="t2">${esc(c.tel||"pas de téléphone")}</span>${tagsHtml(c)}</span><span class="btns" style="flex-direction:column;gap:6px">${late?`<span class="pill p-0">En retard</span>`:""}<button class="btn small sec" data-act="relmsg" data-id="${esc(r.id)}" data-t="${r.t}" data-from="${esc(r.from||"")}" data-lbl="${esc(r.note||"")}">Message</button><button class="btn small" data-act="reldone" data-id="${esc(r.id)}" data-t="${r.t}" data-eid="${esc(r.eid||"")}">${r.t==="envie"?"Prévenue":"Fait"}</button>${r.t==="ech"||r.t==="envie"?"":`<button class="btn small ghost" data-act="relmove" data-id="${esc(r.id)}" data-t="${r.t}">Reporter</button>`}</span></div>`;
 }
-const RMSG=[["sat","📞 Satisfaction"],["reach","🔁 Réachat"],["anniv","🎂 Anniversaire"],["nouv","💤 Prendre des nouvelles"],["salon","🎄 Salon / Noël"],["arrive","📦 Commande arrivée"]];
+const RMSG=[["ech","🧪 Échantillon"],["envie","💝 Envie dispo"],["sat","📞 Satisfaction"],["reach","🔁 Réachat"],["anniv","🎂 Anniversaire"],["nouv","💤 Prendre des nouvelles"],["salon","🎄 Salon / Noël"],["arrive","📦 Commande arrivée"]];
 function relProduits(id,from){ const vs=[...S.ventes.values()].filter(v=>v.client===id&&v.date); let d=from; if(!d||!vs.some(v=>v.date===d)) d=vs.reduce((m,v)=>v.date>m?v.date:m,"");
   const names=[]; for(const v of vs.filter(v=>v.date===d)){ const p=BYCODE.get(String(v.code||"").toUpperCase()); const n=p?(p.t==="p"?"parfum "+p.n:p.n):(v.produit||v.label||""); if(n&&!names.includes(n)) names.push(n); }
   return names; }
-function relMsgText(k,id,from,tu){ const c=S.clients.get(id)||{}; const pr=c.prenom||clientName(c); const ps=relProduits(id,from);
+function relMsgText(k,id,from,tu,lbl){ const c=S.clients.get(id)||{}; const pr=c.prenom||clientName(c); const ps=relProduits(id,from);
   const prod=ps.length?(ps.length>2?ps.slice(0,2).join(", ")+"…":ps.join(" et ")):"";
   const T=(a,b)=>tu?a:b; const ton=T("ton","votre"), tes=T("tes","vos");
   const sign=`\n\n${sigName()} ${MOI.emoji||""}${MOI.tel?"\n"+MOI.tel:""}`;
@@ -941,11 +1000,13 @@ function relMsgText(k,id,from,tu){ const c=S.clients.get(id)||{}; const pr=c.pre
   if(k==="reach") return `Bonjour ${pr} !\n\n${prod?T("Ça fait un moment que tu as pris","Cela fait un moment que vous avez pris")+" : "+prod+". "+T("Tu arrives","Vous arrivez")+" peut-être bientôt au bout 😉":"J'espère que "+tes+" produits "+T("te","vous")+" plaisent toujours 😉"} Si ${T("tu veux en reprendre","vous souhaitez en reprendre")} ou découvrir autre chose, ${T("dis-le-moi","dites-le-moi")} et je ${T("te","vous")} prépare ${T("ta","votre")} commande. Je peux aussi ${T("te","vous")} faire tester des échantillons des nouveautés !`+sign;
   if(k==="anniv"){ const i=annivInfo(c); const mois=i?new Date(i.occ+"T12:00").toLocaleDateString("fr-FR",{month:"long"}):"ce mois-ci";
     return `Joyeux anniversaire ${pr} ! 🎉\n\nPour l'occasion, je ${T("t'offre","vous offre")} -10 % sur ${T("ta","votre")} prochaine commande, valable pendant tout le mois de ${mois}. ${T("Fais-toi plaisir, tu le mérites","Faites-vous plaisir, vous le méritez")} ! Belle journée ✨`+sign; }
+  if(k==="ech") return `${T("Coucou","Bonjour")} ${pr} ! C'est ${MOI.prenom||MOI.nom}${MOI.marque?" de "+MOI.marque:""} ${MOI.emoji||""}\n\n${T("As-tu pu tester","Avez-vous pu tester")} ${lbl?"l'échantillon de "+lbl:T("ton échantillon","votre échantillon")} ? ${T("Dis-moi ce que tu en as pensé","Dites-moi ce que vous en avez pensé")} 😊\n\nS'il ${T("t'a plu","vous a plu")}, je peux ${T("te","vous")} le commander ou ${T("te","vous")} faire découvrir d'autres senteurs proches.`+sign;
+  if(k==="envie") return `Bonne nouvelle ${pr} ! 🎉\n\nJe viens de recevoir ${lbl?"« "+lbl+" »":"le produit"} que ${T("tu voulais","vous vouliez")} 😊 ${T("Veux-tu","Voulez-vous")} que je ${T("te","vous")} le mette de côté ?`+sign;
   if(k==="nouv") return `${T("Coucou","Bonjour")} ${pr}, ça fait un moment ! J'espère que ${T("tu vas","vous allez")} bien 😊\n\nIl y a pas mal de nouveautés chez Chogan en ce moment (parfums, soins, coffrets). Si ${T("tu veux","vous voulez")}, je ${T("t'envoie","vous envoie")} mes coups de cœur du moment !`+sign;
   if(k==="salon") return `Bonjour ${pr} !\n\nJe serai ${ev?"au "+ev.nom+" le "+fdate(ev.debut)+(ev.lieu?" ("+ev.lieu+")":""):"bientôt en salon"} avec mes coffrets de Noël 🎁 ${T("Passe","Passez")} me faire un coucou ! Et si ${T("tu veux","vous voulez")} réserver un cadeau à l'avance, je ${T("te","vous")} le mets de côté.`+sign;
   return `Bonne nouvelle ${pr}, ${T("ta","votre")} commande est arrivée ! 🫧${prod?"\n("+prod+")":""}\n\nQuand est-ce que ça ${T("t'arrange","vous arrange")} pour que je ${T("te","vous")} la remette ?`+sign; }
 function sheetRelMsg(){ const r=S.relMsg; if(!r) return; const c=S.clients.get(r.id)||{}; let tu=true; try{ tu=localStorage.getItem("be-tu")!=="vous"; }catch(_e){}
-  const txt=relMsgText(r.k,r.id,r.from,tu); const tel=String(c.tel||"").replace(/[^\d+]/g,"").replace(/^0(\d{9})$/,"+33$1");
+  const txt=relMsgText(r.k,r.id,r.from,tu,r.lbl||""); const tel=String(c.tel||"").replace(/[^\d+]/g,"").replace(/^0(\d{9})$/,"+33$1");
   openSheet(`<div class="sheet-head"><h2 style="margin:0">Message pour ${esc(c.prenom||clientName(c))}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
   <div class="chips" role="group" aria-label="Modèle de message">${RMSG.map(([k,l])=>`<button type="button" class="chip" data-act="relmsgk" data-k="${k}" aria-pressed="${k===r.k}">${l}</button>`).join("")}</div>
   <div class="chips" role="group" aria-label="Tutoiement" style="margin-top:8px"><button type="button" class="chip" data-act="relmsgtu" data-tu="tu" aria-pressed="${tu}">Tutoyer</button><button type="button" class="chip" data-act="relmsgtu" data-tu="vous" aria-pressed="${!tu}">Vouvoyer</button></div>
@@ -1018,6 +1079,79 @@ Belle journée,
 
 ${[MOI.nom||MOI.prenom, [MOI.titre,MOI.marque].filter(Boolean).join(" · "), [MOI.tel,MOI.mail].filter(Boolean).join(" · "), MOI.web].filter(Boolean).join("\n")}`;
 }
+const HELV_W=[[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500],[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556]];
+const CP1252={0x20AC:128,0x201A:130,0x0192:131,0x201E:132,0x2026:133,0x2020:134,0x2021:135,0x02C6:136,0x2030:137,0x0160:138,0x2039:139,0x0152:140,0x017D:142,0x2018:145,0x2019:146,0x201C:147,0x201D:148,0x2022:149,0x2013:150,0x2014:151,0x02DC:152,0x2122:153,0x0161:154,0x203A:155,0x0153:156,0x017E:158,0x0178:159};
+class MiniPDF{ constructor(){ this.k=72/25.4; this.H=297; this.pages=[[]]; this.fs=10; this.bold=false; this.fill="0 0 0"; this.tc="0 0 0"; this.dc="0 0 0"; }
+  get cur(){ return this.pages[this.pages.length-1]; }
+  addPage(){ this.pages.push([]); }
+  setFillColor(r,g,b){ this.fill=[r,g,b].map(v=>(v/255).toFixed(3)).join(" "); }
+  setTextColor(r,g,b){ this.tc=[r,g,b].map(v=>(v/255).toFixed(3)).join(" "); }
+  setDrawColor(r,g,b){ this.dc=[r,g,b].map(v=>(v/255).toFixed(3)).join(" "); }
+  setFont(_n,st){ this.bold=/bold/.test(st||""); } setFontSize(n){ this.fs=n; }
+  code(ch){ const c=ch.codePointAt(0); if(c<128||(c>=160&&c<256)) return c; return CP1252[c]||63; }
+  width(str){ const w=HELV_W[this.bold?1:0]; let t=0; for(const ch of String(str)){ const c=this.code(ch); t+=(c>=32?w[c-32]:0)||556; } return t*this.fs/1000/this.k; }
+  enc(str){ let o=""; for(const ch of String(str)){ const c=this.code(ch); if(c===40||c===41||c===92) o+="\\"+String.fromCharCode(c); else if(c<32) o+=" "; else if(c>126) o+="\\"+c.toString(8).padStart(3,"0"); else o+=String.fromCharCode(c); } return o; }
+  f(n){ return (Math.round(n*100)/100).toString(); }
+  rect(x,y,w,h){ const k=this.k; this.cur.push(`${this.fill} rg ${this.f(x*k)} ${this.f((this.H-y-h)*k)} ${this.f(w*k)} ${this.f(h*k)} re f`); }
+  line(x1,y1,x2,y2){ const k=this.k; this.cur.push(`${this.dc} RG 0.6 w ${this.f(x1*k)} ${this.f((this.H-y1)*k)} m ${this.f(x2*k)} ${this.f((this.H-y2)*k)} l S`); }
+  text(str,x,y,o){ str=String(str); if(o&&o.align==="right") x-=this.width(str); else if(o&&o.align==="center") x-=this.width(str)/2; const k=this.k;
+    this.cur.push(`BT ${this.tc} rg /${this.bold?"F2":"F1"} ${this.fs} Tf ${this.f(x*k)} ${this.f((this.H-y)*k)} Td (${this.enc(str)}) Tj ET`); }
+  splitTextToSize(str,maxw){ const out=[]; for(const para of String(str).split("\n")){ let line=""; for(const word of para.split(/\s+/)){ if(!word) continue; const t=line?line+" "+word:word; if(this.width(t)<=maxw||!line) line=t; else { out.push(line); line=word; } } out.push(line); } return out; }
+  output(){ const objs=[]; const add=s=>{ objs.push(s); return objs.length; };
+    const cat=add(""), pagesId=add(""), f1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"), f2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+    const kids=[]; for(const p of this.pages){ const st=p.join("\n"); const cs=add(`<< /Length ${st.length} >>\nstream\n${st}\nendstream`); kids.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >> >> /Contents ${cs} 0 R >>`)); }
+    objs[cat-1]=`<< /Type /Catalog /Pages ${pagesId} 0 R >>`; objs[pagesId-1]=`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`;
+    let out="%PDF-1.4\n"; const off=[]; objs.forEach((o,i)=>{ off.push(out.length); out+=`${i+1} 0 obj\n${o}\nendobj\n`; });
+    const x=out.length; out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+off.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size ${objs.length+1} /Root ${cat} 0 R >>\nstartxref\n${x}\n%%EOF`;
+    const bytes=new Uint8Array(out.length); for(let i=0;i<out.length;i++) bytes[i]=out.charCodeAt(i)&255; return new Blob([bytes],{type:"application/pdf"}); } }
+const pdfTxt=t=>String(t==null?"":t).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu,"").replace(/[\u2009\u200a]/g," ").replace(/\u2212/g,"-").replace(/\u202f|\u00a0/g," ").replace(/\s+$/,"").trim();
+const pdfEur=n=>pdfTxt(eur(n));
+function brandRGB(){ let h=(getComputedStyle(document.documentElement).getPropertyValue("--btn")||"").trim()||APP.color||"#8E2C48"; if(!/^#[0-9a-f]{6}$/i.test(h)) h=APP.color||"#8E2C48"; return [1,3,5].map(i=>parseInt(h.slice(i,i+2),16)); }
+async function bonPDF(key, btn){ const o=CALC.orders.find(x=>x.key===key); if(!o) return; const c=S.clients.get(o.client)||{}; const m=orderMeta(o);
+  if(btn){ btn.disabled=true; btn.dataset.lbl=btn.textContent; btn.textContent="Création du PDF…"; }
+  try{ const doc=new MiniPDF(); const [r,g,b]=brandRGB(); const W=210, M=15; let y;
+    const txt=(t,x,yy,o2)=>doc.text(pdfTxt(t),x,yy,o2||{});
+    doc.setFillColor(r,g,b); doc.rect(0,0,W,34,"F"); doc.setTextColor(255,255,255);
+    doc.setFont("helvetica","bold"); doc.setFontSize(18); txt(MOI.marque||MOI.nom||APP.name,M,14);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.5); txt([MOI.nom&&MOI.marque?MOI.nom:"",MOI.titre].filter(Boolean).join(" - "),M,21); txt([MOI.tel,MOI.mail,MOI.web].filter(Boolean).join("  |  "),M,27);
+    doc.setFont("helvetica","bold"); doc.setFontSize(13); txt("BON DE COMMANDE",W-M,14,{align:"right"}); doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+    txt("du "+fdate(o.date),W-M,21,{align:"right"}); txt("N° "+o.date.replace(/-/g,"")+"-"+(initials(c)||"").toUpperCase(),W-M,27,{align:"right"});
+    doc.setTextColor(30,30,30); y=45;
+    doc.setFontSize(8.5); doc.setTextColor(110,110,110); txt("CLIENTE",M,y); txt("LIVRAISON ET PAIEMENT",112,y); doc.setTextColor(30,30,30);
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); txt(clientName(c),M,y+6); doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+    let yl=y+11; for(const l of [c.tel, c.email, adresseOf(c)]){ if(!l) continue; for(const s2 of doc.splitTextToSize(pdfTxt(l),88)){ txt(s2,M,yl); yl+=4.6; } }
+    let yr=y+6; const livTxt=isDom(m.livraison)?"Livraison à domicile"+(m.port?" (port "+pdfEur(m.port)+")":portPaye(m.livraison)?"":", port offert"):m.livraison;
+    for(const l of [livTxt, "Paiement : "+(m.paiement||"-"), m.salon?"Lieu : "+m.salon:""]){ if(!l) continue; for(const s2 of doc.splitTextToSize(pdfTxt(l),83)){ txt(s2,112,yr); yr+=4.6; } }
+    y=Math.max(yl,yr)+6;
+    const head=()=>{ doc.setFillColor(Math.round(r+(255-r)*.85),Math.round(g+(255-g)*.85),Math.round(b+(255-b)*.85)); doc.rect(M,y-5,W-2*M,8,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(r,g,b);
+      txt("Réf.",M+2,y); txt("Produit",M+24,y); txt("Qté",140,y,{align:"right"}); txt("Prix unit.",166,y,{align:"right"}); txt("Total",W-M-2,y,{align:"right"}); doc.setTextColor(30,30,30); doc.setFont("helvetica","normal"); y+=8; };
+    head(); let zebra=false;
+    const row=(ref,name,sub,q,pu,tot)=>{ const nl=doc.splitTextToSize(pdfTxt(name),92); const sl=sub?doc.splitTextToSize(pdfTxt(sub),92):[]; const h=4.6*(nl.length+sl.length)+2.4;
+      if(y+h>268){ doc.addPage(); y=20; head(); }
+      if(zebra){ doc.setFillColor(246,246,246); doc.rect(M,y-4.4,W-2*M,h,"F"); } zebra=!zebra;
+      doc.setFontSize(9.5); txt(ref,M+2,y); nl.forEach((l,i)=>txt(l,M+24,y+i*4.6)); doc.setFontSize(8.3); doc.setTextColor(110,110,110); sl.forEach((l,i)=>txt(l,M+24,y+(nl.length+i)*4.6)); doc.setTextColor(30,30,30); doc.setFontSize(9.5);
+      txt(q,140,y,{align:"right"}); txt(pu,166,y,{align:"right"}); txt(tot,W-M-2,y,{align:"right"}); y+=h; };
+    for(const v of groupLines(o.lines)){
+      if(v.cof){ row("",v.nom,v.items.map(x=>(BYCODE.get(String(x.code||"").toUpperCase())||{}).n||x.label).join(" + "),"1",pdfEur(v.total),pdfEur(v.total)); continue; }
+      const p=BYCODE.get(String(v.code||"").toUpperCase())||{}; const q=Number(v.qty)||0, pu=Number(v.pu)||0;
+      row(v.code||"", p.n||v.label||v.code, p.t==="p"&&p.eq?"Inspiré de "+p.eq:(p.f||""), nb(q), v.offert?"-":pdfEur(pu), v.offert?"Offert":pdfEur(q*pu)); }
+    y+=3; doc.setDrawColor(200,200,200); doc.line(110,y,W-M,y); y+=6;
+    const tl=(l,v,bold,col)=>{ if(y>275){ doc.addPage(); y=20; } doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(bold?12:9.5); if(col) doc.setTextColor(...col); txt(l,166,y,{align:"right"}); txt(v,W-M-2,y,{align:"right"}); doc.setTextColor(30,30,30); y+=bold?7:5.5; };
+    if(m.port) tl("Frais de port",pdfEur(m.port));
+    if(o.lines.some(v=>v.remise)) tl("Remise anniversaire (-10 %)","incluse");
+    tl("TOTAL",pdfEur(o.total),true,[r,g,b]);
+    const reste=o.paye?0:Math.max(0,o.total-m.acompte);
+    if(o.paye) tl("Réglé"+(m.paiement&&m.paiement!==PAIE[0]?" ("+m.paiement.toLowerCase()+")":""),pdfEur(o.total));
+    else { if(m.acompte>0) tl("Déjà réglé",pdfEur(m.acompte)); tl("Reste à régler",pdfEur(reste),false,[r,g,b]); }
+    if(m.note){ y+=3; doc.setFont("helvetica","normal"); doc.setFontSize(9.5); for(const l of doc.splitTextToSize(pdfTxt("Note : "+m.note),W-2*M)){ txt(l,M,y); y+=4.6; } }
+    const fy=284; doc.setDrawColor(r,g,b); doc.line(M,fy-6,W-M,fy-6); doc.setFontSize(9); doc.setTextColor(r,g,b); doc.setFont("helvetica","bold"); txt("Merci pour votre confiance !",M,fy);
+    doc.setFont("helvetica","normal"); doc.setTextColor(110,110,110); txt(sigName(),W-M,fy,{align:"right"});
+    const name=("Bon_de_commande_"+clientName(c)+"_"+o.date).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9_-]+/g,"_")+".pdf";
+    const blob=doc.output(); const file=new File([blob],name,{type:"application/pdf"});
+    if(!window.claude && navigator.canShare && navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file], title:"Bon de commande", text:"Votre bon de commande du "+fdate(o.date)}); }catch(e2){ if(e2&&e2.name!=="AbortError") await saveBlob(blob,name); } }
+    else { await saveBlob(blob,name); toast("PDF enregistré dans tes téléchargements."); }
+  }catch(err){ console.error(err); toast("Création du PDF impossible, réessaie."); }
+  if(btn){ btn.disabled=false; btn.textContent=btn.dataset.lbl||"PDF"; } }
 function sheetRecap(key, fresh){
   const o=CALC.orders.find(x=>x.key===key); if(!o) return; const c=S.clients.get(o.client)||{};
   const txt=recapText(o); const subj="Votre commande "+(MOI.marque?MOI.marque+" ":"")+"du "+fdate(o.date);
@@ -1025,6 +1159,7 @@ function sheetRecap(key, fresh){
   openSheet(`<div class="sheet-head"><h2 style="margin:0">${fresh?"Bon enregistré":"Récapitulatif"}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
   <p class="note">Envoie le récapitulatif à ${esc(clientName(c))}. Ta messagerie s'ouvre avec le texte prêt : il ne reste qu'à appuyer sur Envoyer.</p>
   <div class="btns" style="margin:10px 0">${c.email?`<a class="btn" style="text-decoration:none" data-ml="1" href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(txt)}">E-mail</a>`:`<button class="btn ghost" data-act="editclient" data-id="${esc(o.client)}">Ajouter son e-mail</button>`}${tel?`<a class="btn sec" style="text-decoration:none" data-ml="1" href="https://wa.me/${tel.replace(/^\+/,"")}?text=${encodeURIComponent(txt)}">WhatsApp</a><a class="btn sec" style="text-decoration:none" data-ml="1" href="sms:${tel}?body=${encodeURIComponent(txt)}">SMS</a>`:""}<button class="btn ghost" data-act="copyrecap">Copier le texte</button></div>
+  <button class="btn ghost" style="width:100%;margin-bottom:10px" data-act="bonpdf" data-key="${esc(key)}">📄 Bon de commande en PDF</button>
   <textarea id="recap-txt" class="in" rows="14" readonly style="font-size:13px;line-height:1.45">${esc(txt)}</textarea>`);
 }
 function vVendre(){
@@ -1092,6 +1227,7 @@ function sheetClient(id){
   ${(()=>{ const i=annivInfo(c); if(!i||!i.mois) return ""; return `<div class="banner">🎂 Mois d'anniversaire : le ${i.label}${i.age?" ("+i.age+" ans)":""}. ${i.used?"Remise de −10 % déjà utilisée cette année.":"−10 % à lui offrir sur sa commande ce mois-ci."}</div>`; })()}
   ${(()=>{ const tid=teamOfClient(id); if(tid){ const t=S.team.get(tid)||{}; return `<div class="banner" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>✓ Dans ton équipe${t.inscription?" depuis le "+fdate(t.inscription):""}${t.code?" · code "+esc(t.code):""}${stEq(t)!=="Conseillère"?" · <b>"+esc(stEq(t))+"</b>":""}</span><button class="btn small sec" data-act="cons" data-id="${esc(tid)}">Voir dans Mon équipe</button></div>`; }
     return `<div class="btns" style="margin:8px 0"><button class="btn small sec" data-act="joinedteam" data-id="${esc(id)}">🎉 A rejoint mon équipe</button></div>`; })()}
+  ${echEnvSection(id)}
   ${c.osec?"":`<p class="note">Fiche pas encore saisie sur l'application Osé-Clat.</p>`}
   ${(()=>{ const f=CALC.fid.get(id); if(!f) return ""; const reste=f.N-f.prog;
     return `<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font-family:var(--display);font-size:19px">Carte de fidélité</b><b>${f.prog} / ${f.N}</b></div>${fidCard(id,true)}
@@ -1192,6 +1328,11 @@ document.addEventListener("click", async e=>{
     try{ await S.db.doc("clients/"+id).delete(); const p=getPending(); if(p[id]){ delete p[id]; setPending(p); } closeSheet(); toast("Fiche de "+clientName(c)+" supprimée."); }catch(err){ a.disabled=false; toast("Suppression impossible, réessaie."); } return; }
   if(act==="newcons"){ sheetCons(null); return; }
   if(act==="joinedteam"){ sheetCons(null, a.dataset.id); return; }
+  if(act==="newee"){ sheetEE(a.dataset.col, a.dataset.id); return; }
+  if(act==="eeset"){ a.disabled=true; try{ await write(a.dataset.col+"/"+a.dataset.eid,{statut:a.dataset.s, fait:today()},true); toast("C'est noté."); const cid=((a.dataset.col==="echantillons"?S.ech:S.envies).get(a.dataset.eid)||{}).client; if(document.querySelector(".sheet")&&cid) setTimeout(()=>sheetClient(cid),200); }catch(err){ a.disabled=false; } return; }
+  if(act==="eedel"){ if(a.dataset.confirm!=="1"){ a.dataset.confirm="1"; a.textContent="Supprimer ?"; return; } const cid=((a.dataset.col==="echantillons"?S.ech:S.envies).get(a.dataset.eid)||{}).client; a.disabled=true; try{ await S.db.doc(a.dataset.col+"/"+a.dataset.eid).delete(); toast("Supprimé."); if(document.querySelector(".sheet")&&cid) setTimeout(()=>sheetClient(cid),200); }catch(err){ a.disabled=false; } return; }
+  if(act==="goto"){ S.view=a.dataset.v; if(a.dataset.sf) S.suiviFilter=a.dataset.sf; if(a.dataset.day) S.relDay=a.dataset.day; render(); window.scrollTo(0,0); return; }
+  if(act==="bonpdf"){ bonPDF(a.dataset.key, a); return; }
   if(act==="steq"){ const id=a.dataset.id, c=S.team.get(id); if(!c||stEq(c)===a.dataset.s) return; const st=a.dataset.s;
     await write("equipe/"+id,{statutEq:st, statutHist:[...(c.statutHist||[]),{d:today(),s:st}].slice(-20)},true);
     toast(st==="Conseillère"?"Elle redevient conseillère.":st==="Client Insider"?"Passée en Client Insider : elle reste dans ton équipe.":"Passée en cliente simple : elle reste dans ton équipe."); setTimeout(()=>sheetConsView(id),200); return; }
@@ -1317,9 +1458,11 @@ document.addEventListener("click", async e=>{
   if(act==="saveprofil"){ const d={}; for(const [k] of PF){ const e=$("#pf-"+k); if(e) d[k]=e.value.trim(); } if(!d.prenom&&!d.nom){ toast("Indique au moins ton prénom."); return; }
     a.disabled=true; Object.assign(MOI,d); applyBrand(); try{ await write("config/profil",d); toast("Profil enregistré ✓"); S.view="accueil"; render(); }catch(err){ toast("Enregistrement impossible, réessaie."); } a.disabled=false; return; }
   if(act==="fblogout"){ if(window.fbLogout) window.fbLogout(); return; }
-  if(act==="relmsg"){ const t=a.dataset.t; S.relMsg={id:a.dataset.id, from:a.dataset.from||"", k:t==="sat"?"sat":t==="reach"?"reach":t==="anniv"?"anniv":"nouv"}; sheetRelMsg(); return; }
+  if(act==="relmsg"){ const t=a.dataset.t; S.relMsg={id:a.dataset.id, from:a.dataset.from||"", lbl:a.dataset.lbl||"", k:["sat","reach","anniv","ech","envie"].includes(t)?t:"nouv"}; sheetRelMsg(); return; }
   if(act==="relmsgk"){ if(S.relMsg){ S.relMsg.k=a.dataset.k; sheetRelMsg(); } return; }
   if(act==="relmsgtu"){ try{ localStorage.setItem("be-tu",a.dataset.tu); }catch(_e){} sheetRelMsg(); return; }
+  if(act==="reldone" && (a.dataset.t==="ech"||a.dataset.t==="envie")){ const eid=a.dataset.eid, col=a.dataset.t==="ech"?"echantillons":"envies"; const e=(a.dataset.t==="ech"?S.ech:S.envies).get(eid); if(!e) return; a.disabled=true;
+    try{ await write(col+"/"+eid,{statut:a.dataset.t==="ech"?"relancée":"prévenue", fait:today()},true); toast(a.dataset.t==="ech"?"Relance échantillon notée.":"Cliente prévenue."); }catch(err){ a.disabled=false; } return; }
   if(act==="reldone"){ const id=a.dataset.id, t=a.dataset.t, c=S.clients.get(id)||{}; a.disabled=true;
     try{ if(t==="man") await write("clients/"+id,{relance:null, faits:[...(c.faits||[]),{d:today(),t:"man"}].slice(-20)},true); else await write("clients/"+id,{faits:[...(c.faits||[]),{d:today(),t}].slice(-20)},true); toast("Relance notée pour "+clientName(c)+"."); }catch(err){ a.disabled=false; } return; }
   if(act==="relmove"||act==="relplan"){ const id=a.dataset.id, t=a.dataset.t||"man", c=S.clients.get(id)||{}; const cur=(c.relance&&c.relance.date)||addDays(today(),7);
@@ -1336,6 +1479,7 @@ document.addEventListener("click", async e=>{
   if(act==="relcfg"){ openSheet(`<div class="sheet-head"><h2 style="margin:0">Réglages des relances</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
     <form id="cfgform"><label class="f" for="cg-start">Prendre en compte les commandes à partir du</label><input id="cg-start" class="in" type="date" value="${S.cfg.start}">
     <div class="grid2"><div><label class="f" for="cg-j1">Appel satisfaction (jours)</label><input id="cg-j1" class="in" type="number" min="1" value="${S.cfg.j1}"></div><div><label class="f" for="cg-j2">Relance réachat (jours)</label><input id="cg-j2" class="in" type="number" min="1" value="${S.cfg.j2}"></div></div>
+    <label class="f" for="cg-jech">Suivi d'un échantillon (jours après l'avoir donné)</label><input id="cg-jech" class="in" type="number" min="1" value="${Number(S.cfg.jEch)||5}">
     <label class="f" for="cg-avis" style="margin-top:10px">Lien pour laisser un avis Google</label><input id="cg-avis" class="in" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(S.cfg.avis||"")}">
     <p class="note">Sur Google Maps ou ta fiche d'établissement Google : « Demander des avis » → copie le lien et colle-le ici. Il sera ajouté aux messages de satisfaction.</p>
     <button class="btn" style="width:100%;margin-top:14px" type="submit">Enregistrer</button></form>`); return; }
@@ -1467,6 +1611,9 @@ document.addEventListener("submit", async e=>{
       if(exact){ await write("memo/"+uid("o"),{code:exact.c.toUpperCase(),qty:1,created:new Date().toISOString()}); }
       else await write("memo/"+uid("o"),{label:t,qty:1,created:new Date().toISOString()});
       S.q4=""; render(); toast("Ajouté au mémo."); return; }
+    if(f.id==="eeform"){ const raw=$("#ee-p").value.trim(); const code0=raw.split(" · ")[0]; const p=resolveProd(code0)||resolveProd(raw); const col=f.dataset.col, cid=f.dataset.client;
+      const d={client:cid, code:p?p.c:"", label:p?p.n:raw, date:$("#ee-d").value||today(), note:$("#ee-n").value.trim(), statut:col==="echantillons"?"donné":"attente", created:new Date().toISOString()};
+      await write(col+"/"+uid(col==="echantillons"?"e":"w"), d); toast(col==="echantillons"?"Échantillon noté.":"Envie notée."); sheetClient(cid); return; }
     if(f.id==="consform"){ const id=f.dataset.id||uid("t"); const old=S.team.get(id)||{};
       const cid=f.dataset.client||old.clientId||"";
       await write("equipe/"+id,{...old, ...(cid?{clientId:cid}:{}), prenom:$("#co-pr").value.trim(), nom:$("#co-nom").value.trim(), tel:$("#co-tel").value.trim(), email:$("#co-mail").value.trim(), code:$("#co-code").value.trim(), inscription:$("#co-ins").value, niveau:$("#co-niv").value, lignee:$("#co-lig").value, obs:$("#co-obs").value.trim(), actif:$("#co-act").checked});
@@ -1497,7 +1644,7 @@ document.addEventListener("submit", async e=>{
       await write("clients/"+id,{cadeaux:[...(c.cadeaux||[]),{d:today(),note:note+(code?" – "+code:"")}]},true); closeSheet(); toast("Cadeau enregistré, nouvelle carte commencée pour "+clientName(c)+"."); }
     if(f.id==="objform"){ await write("config/objectifs",{clientes:parseInt($("#ob-c").value,10)||0, commandes:parseInt($("#ob-o").value,10)||0, recrues:parseInt($("#ob-r").value,10)||0}); closeSheet(); toast("Objectifs enregistrés."); }
     if(f.id==="cfgform"){
-      const cfg={start:$("#cg-start").value||S.cfg.start, j1:parseInt($("#cg-j1").value,10)||15, j2:parseInt($("#cg-j2").value,10)||60, avis:$("#cg-avis").value.trim()};
+      const cfg={start:$("#cg-start").value||S.cfg.start, j1:parseInt($("#cg-j1").value,10)||15, j2:parseInt($("#cg-j2").value,10)||60, jEch:parseInt($("#cg-jech").value,10)||5, avis:$("#cg-avis").value.trim()};
       await write("config/relances", cfg); closeSheet(); toast("Réglages enregistrés.");
     }
     if(f.id==="vform"){
@@ -1525,6 +1672,8 @@ applyBrand(); render();
   db.doc("config/fidelite").onSnapshot(d=>{ if(d.exists) S.fidCfg={...S.fidCfg,...d.data()}; compute(); render(); }, ()=>{});
   db.doc("config/objectifs").onSnapshot(d=>{ if(d.exists) S.obj={...S.obj,...d.data()}; render(); }, ()=>{});
   db.doc("config/relances").onSnapshot(d=>{ if(d.exists) S.cfg={...S.cfg,...d.data()}; compute(); render(); }, ()=>{});
+  db.collection("echantillons").onSnapshot(q=>{ S.ech=new Map(q.docs.map(d=>[d.id,d.data()])); compute(); render(); }, ()=>{});
+  db.collection("envies").onSnapshot(q=>{ S.envies=new Map(q.docs.map(d=>[d.id,d.data()])); compute(); render(); }, ()=>{});
   db.collection("equipe").onSnapshot(q=>{ S.team=new Map(q.docs.map(d=>[d.id,d.data()])); compute(); render(); }, ()=>{});
   db.collection("pointsmois").onSnapshot(q=>{ S.ptsMois=new Map(q.docs.map(d=>[d.id,d.data()])); render(); }, ()=>{});
   db.collection("coffrets").onSnapshot(q=>{ S.coffrets=new Map(q.docs.map(d=>[d.id,d.data()])); render(); }, ()=>{});
