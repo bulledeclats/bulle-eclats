@@ -529,7 +529,8 @@ function bilanSalon(nom){
   const aCmd=ord.filter(o=>o.etape===0).length, aLiv=ord.filter(o=>o.etape<4).length;
   const isInd=o=>o.lines.some(v=>v.venteType==="indirecte"); const od=ord.filter(o=>!isInd(o)), oi=ord.filter(isInd);
   const caD=od.reduce((t,o)=>t+o.lines.filter(v=>(v.salon||"")===nom).reduce((a,v)=>a+(Number(v.qty)||0)*(Number(v.pu)||0),0),0), caI=ca-caD;
-  return {nom, ca, gain, pts, pcs, n:ord.length, nD:od.length, nI:oi.length, caD, caI, du, nouv, top, aCmd, aLiv, panier:ord.length?ca/ord.length:0, dates:[...new Set(vs.map(v=>v.date))].sort()};
+  const cad=[...S.mvts.values()].filter(m=>isCadeauMvt(m)&&(m.salon||"")===nom); const cadeaux=cad.reduce((t,m)=>t+(Number(m.qty)||0)*((BYCODE.get(String(m.code||"").toUpperCase())||{}).pa||0),0);
+  return {nom, ca, gain, cadeaux, nCad:cad.reduce((t,m)=>t+(Number(m.qty)||0),0), pts, pcs, n:ord.length, nD:od.length, nI:oi.length, caD, caI, du, nouv, top, aCmd, aLiv, panier:ord.length?ca/ord.length:0, dates:[...new Set(vs.map(v=>v.date))].sort()};
 }
 function sheetBilan(nom){
   const names=[...new Set([...CALC.ventes.map(v=>v.salon).filter(Boolean)])];
@@ -539,13 +540,13 @@ function sheetBilan(nom){
 Commandes : ${b.n} (directes : ${b.nD} · indirectes : ${b.nI}) · pièces vendues : ${nb(b.pcs)}
 Ventes directes : ${eur(b.caD)} · commandes indirectes : ${eur(b.caI)}
 Chiffre d'affaires : ${eur(b.ca)} · panier moyen : ${eur(b.panier)}
-Gain : ${eur(b.gain)} · points : ${nb(b.pts)}
+Gain : ${eur(b.gain)} · points : ${nb(b.pts)}${b.cadeaux?"\nCadeaux offerts : "+eur(b.cadeaux)+" ("+b.nCad+" produit"+(b.nCad>1?"s":"")+") · gain net : "+eur(b.gain-b.cadeaux):""}
 Nouvelles clientes : ${b.nouv}
 Reste à encaisser : ${eur(b.du)}
 Produits vendus :
 ${b.top.map(([k,q])=>"- "+q+" × "+((BYCODE.get(k)||{}).n||k)+" ("+k+")").join("\n")}`;
   openSheet(`<div class="sheet-head"><div><h2 style="margin:0">Bilan du salon</h2><div class="t2">${esc(b.nom)}</div></div><button class="x" data-act="close" aria-label="Fermer">×</button></div>
-  ${b.n?`<div class="tiles"><div class="tile"><b class="money">${eur(b.caD)}</b><span>Ventes directes · ${b.nD} bon${b.nD>1?"s":""}</span></div><div class="tile"><b class="money">${eur(b.caI)}</b><span>Commandes indirectes · ${b.nI} bon${b.nI>1?"s":""}</span></div><div class="tile"><b class="money">${eur(b.ca)}</b><span>Chiffre d'affaires total</span></div><div class="tile gain"><b class="money">${eur(b.gain)}</b><span>Gain</span></div><div class="tile"><b>${b.n}</b><span>Commandes · panier moyen ${eur(b.panier)}</span></div><div class="tile"><b>${b.nouv}</b><span>Nouvelles clientes</span></div><div class="tile"><b>${nb(b.pts)}</b><span>Points</span></div><div class="tile ${b.du?"alert":""}"><b class="money">${eur(b.du)}</b><span>Reste à encaisser</span></div></div>
+  ${b.n?`<div class="tiles">${b.cadeaux?`<div class="tile"><b class="money">${eur(b.cadeaux)}</b><span>Cadeaux offerts · ${b.nCad} produit${b.nCad>1?"s":""}</span></div><div class="tile"><b class="money">${eur(b.gain-b.cadeaux)}</b><span>Gain net (après cadeaux)</span></div>`:""}<div class="tile"><b class="money">${eur(b.caD)}</b><span>Ventes directes · ${b.nD} bon${b.nD>1?"s":""}</span></div><div class="tile"><b class="money">${eur(b.caI)}</b><span>Commandes indirectes · ${b.nI} bon${b.nI>1?"s":""}</span></div><div class="tile"><b class="money">${eur(b.ca)}</b><span>Chiffre d'affaires total</span></div><div class="tile gain"><b class="money">${eur(b.gain)}</b><span>Gain</span></div><div class="tile"><b>${b.n}</b><span>Commandes · panier moyen ${eur(b.panier)}</span></div><div class="tile"><b>${b.nouv}</b><span>Nouvelles clientes</span></div><div class="tile"><b>${nb(b.pts)}</b><span>Points</span></div><div class="tile ${b.du?"alert":""}"><b class="money">${eur(b.du)}</b><span>Reste à encaisser</span></div></div>
   ${b.aCmd||b.aLiv?`<p class="note">${b.aCmd?b.aCmd+" commande(s) à passer chez Chogan. ":""}${b.aLiv?b.aLiv+" commande(s) pas encore livrée(s).":""} <button class="btn small ghost" data-go="suivi">Voir le suivi</button></p>`:""}
   <div class="sect">Produits vendus</div><div class="list">${b.top.map(([k,q])=>{const p=BYCODE.get(k)||{}; return `<div class="row" style="cursor:default"><span class="code">${esc(k)}</span><span class="grow"><span class="t1">${esc(p.n||k)}</span><br><span class="t2">${esc(p.eq||p.k||"")}</span></span><b>× ${nb(q)}</b></div>`;}).join("")}</div>
   <textarea id="recap-txt" class="in" rows="6" readonly style="position:absolute;left:-9999px">${esc(txt)}</textarea>
@@ -812,10 +813,16 @@ function vStock(){
   if (q) codes=codes.filter(k=>{ const p=BYCODE.get(k); return q.split(" ").every(w=>norm(p.c+" "+p.n+" "+p.eq+" "+p.g).includes(w)); });
   codes.sort((a,b)=> (BYCODE.get(a).g).localeCompare(BYCODE.get(b).g) || a.localeCompare(b));
   let h=`<div class="search"><input id="q-stock" type="search" autocomplete="off" placeholder="${f==="cat"?"Chercher dans tout le catalogue…":"Filtrer mon stock…"}" value="${esc(S.q)}" aria-label="Filtrer le stock"></div>
-  <div class="chips" role="group" aria-label="Filtre">${[["tous","Mon stock"],["dispo","Disponibles"],["alerte","Ruptures & bas"],["expo","En exposition"],["perso","Conso perso"],["cof","🎁 Coffrets cadeaux"],["cat","Tout le catalogue"]].map(([k,l])=>`<button class="chip" data-filter="${k}" aria-pressed="${f===k}">${l}</button>`).join("")}</div>
-  <div class="btns" style="margin:10px 0"><button class="btn small" data-act="entree">+ Réception / ajout au stock</button><button class="btn small sec" data-act="perso">Ma conso perso</button><button class="btn small sec" data-act="sortie">− Sortie (cadeau…)</button><button class="btn small ghost" data-act="expo">Mettre en exposition</button><button class="btn small ghost" data-act="newprod">+ Nouveau produit</button></div>
+  <div class="chips" role="group" aria-label="Filtre">${[["tous","Mon stock"],["dispo","Disponibles"],["alerte","Ruptures & bas"],["expo","En exposition"],["perso","Conso perso"],["cadeaux","🎁 Cadeaux offerts"],["cof","🎁 Coffrets cadeaux"],["cat","Tout le catalogue"]].map(([k,l])=>`<button class="chip" data-filter="${k}" aria-pressed="${f===k}">${l}</button>`).join("")}</div>
+  <div class="btns" style="margin:10px 0"><button class="btn small" data-act="entree">+ Réception / ajout au stock</button><button class="btn small sec" data-act="perso">Ma conso perso</button><button class="btn small sec" data-act="cadeau">🎁 Cadeau offert</button><button class="btn small ghost" data-act="sortie">− Autre sortie</button><button class="btn small ghost" data-act="expo">Mettre en exposition</button><button class="btn small ghost" data-act="newprod">+ Nouveau produit</button></div>
   <p class="note">${nb(CALC.pieces)} pièces vendables · ${eur(CALC.value)} au prix d'achat${CALC.expoPcs?` · ${nb(CALC.expoPcs)} en exposition (${eur(CALC.expoVal)})`:""}</p>`;
   if(f==="cof"){ return h+vCoffrets(true); }
+  if(f==="cadeaux"){ const allE=[...S.mvts.entries()].filter(([,m])=>isCadeauMvt(m)).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date)));
+    const val=l=>l.reduce((t,[,m])=>t+(Number(m.qty)||0)*((BYCODE.get(String(m.code||"").toUpperCase())||{}).pa||0),0); const y=today().slice(0,4);
+    const bySalon=new Map(); for(const e of allE){ const k=e[1].salon||"Sans salon"; bySalon.set(k,[...(bySalon.get(k)||[]),e]); }
+    return h+`<div class="tiles"><div class="tile"><b class="money">${eur(val(allE.filter(([,m])=>String(m.date).startsWith(y))))}</b><span>Cadeaux offerts en ${y} (prix d'achat)</span></div><div class="tile"><b>${allE.reduce((t,[,m])=>t+(Number(m.qty)||0),0)}</b><span>Produits offerts</span></div></div>
+    <div class="btns" style="margin:10px 0"><button class="btn small" data-act="cadeau">🎁 Ajouter un cadeau offert</button></div>
+    ${allE.length?[...bySalon.entries()].map(([sal,l])=>`<div class="sect">${esc(sal)} · ${eur(val(l))}</div><div class="list">${l.map(([id,m])=>{const p=BYCODE.get(String(m.code||"").toUpperCase())||{}; return `<button class="row" data-act="editmvt" data-id="${esc(id)}"><span class="code">${esc(m.code)}</span><span class="grow"><span class="t1">${esc(p.n||m.code)}</span><br><span class="t2">${fdate(m.date)} · ${esc(String(m.motif).replace(/^Cadeau : /,""))}${m.note?" · "+esc(m.note):""}</span></span><span class="right"><b>× ${nb(m.qty)}</b><br><span class="t2 money">${eur((Number(m.qty)||0)*(p.pa||0))}</span></span></button>`;}).join("")}</div>`).join("")+`<p class="note">Appuie sur une ligne pour la modifier ou la supprimer.</p>`:`<div class="card empty">Aucun cadeau offert pour l'instant. Utilise « 🎁 Cadeau offert » quand tu offres un produit à un organisateur, un partenaire ou pour un jeu concours.</div>`}`; }
   if(f==="perso"){ const isP=isPersoMvt; const allE=[...S.mvts.entries()].filter(([,m])=>isP(m)).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date))); const all=allE.map(x=>x[1]);
     const mo=today().slice(0,7), y=today().slice(0,4); const val=l=>l.reduce((t,m)=>t+(Number(m.qty)||0)*((BYCODE.get(String(m.code||"").toUpperCase())||{}).pa||0),0);
     const lm=all.filter(m=>String(m.date).startsWith(mo)), ly=all.filter(m=>String(m.date).startsWith(y));
@@ -1225,7 +1232,7 @@ function sheetProduct(code){
   const hist=CALC.ventes.filter(v=>String(v.code||"").toUpperCase()===code).slice(-6).reverse();
   openSheet(`<div class="sheet-head"><div><span class="code">${esc(p.c)}</span><h2 style="margin:8px 0 2px">${esc(p.n)}${isRecent(p.created)?` <span class="tag neu" style="vertical-align:middle">Nouveau</span>`:""}</h2><div class="t2">${esc(p.eq||"")}</div></div><button class="x" data-act="close" aria-label="Fermer">×</button></div>
   <div class="card"><div style="margin-bottom:10px">${stockPill(code)}${(CALC.expo.get(code)||0)>0?` <span class="pill" style="background:var(--champ);color:var(--champ-ink)">+ ${CALC.expo.get(code)} en exposition (non vendable)</span>`:""}</div><dl class="kv"><dt>Gamme</dt><dd>${esc(p.g)}</dd><dt>Catégorie</dt><dd>${esc(p.k)}</dd>${p.f?`<dt>Format</dt><dd>${esc(p.f)}</dd>`:""}<dt>Prix de vente</dt><dd class="money">${p.pv!=null?eur(p.pv):"—"}</dd><dt>Prix d'achat</dt><dd class="money">${p.pa!=null?eur(p.pa):"—"}</dd><dt>Gain par vente</dt><dd class="money gaintxt">${(p.pv!=null&&p.pa!=null)?eur(p.pv-p.pa):"—"}</dd><dt>Points</dt><dd>${p.pt!=null?nb(p.pt):"—"}</dd><dt>Seuil d'alerte</dt><dd>${nb(s.seuil||0)}</dd></dl></div>
-  <div class="btns"><button class="btn" data-act="sellthis" data-code="${esc(code)}">Vendre</button><button class="btn sec" data-act="entree" data-code="${esc(code)}">+ Ajouter au stock</button><button class="btn ghost" data-act="perso" data-code="${esc(code)}">Ma conso perso</button><button class="btn ghost" data-act="expo" data-code="${esc(code)}">Mettre en exposition</button>${(CALC.expo.get(code)||0)>0?`<button class="btn ghost" data-act="expoback" data-code="${esc(code)}">Retour d'exposition</button>`:""}<button class="btn ghost" data-act="seuil" data-code="${esc(code)}">Seuil d'alerte</button><button class="btn ghost" data-act="editprod" data-code="${esc(code)}">Modifier le produit</button></div>
+  <div class="btns"><button class="btn" data-act="sellthis" data-code="${esc(code)}">Vendre</button><button class="btn sec" data-act="entree" data-code="${esc(code)}">+ Ajouter au stock</button><button class="btn ghost" data-act="perso" data-code="${esc(code)}">Ma conso perso</button><button class="btn ghost" data-act="cadeau" data-code="${esc(code)}">🎁 Offrir (cadeau)</button><button class="btn ghost" data-act="expo" data-code="${esc(code)}">Mettre en exposition</button>${(CALC.expo.get(code)||0)>0?`<button class="btn ghost" data-act="expoback" data-code="${esc(code)}">Retour d'exposition</button>`:""}<button class="btn ghost" data-act="seuil" data-code="${esc(code)}">Seuil d'alerte</button><button class="btn ghost" data-act="editprod" data-code="${esc(code)}">Modifier le produit</button></div>
   ${p.mod?`<p class="note">Prix ou infos modifiés par toi.</p>`:""}${p.neuf?`<p class="note">Produit ajouté par toi.</p>`:""}
   ${(()=>{ const ml=[...S.mvts.entries()].filter(([,m])=>String(m.code||"").toUpperCase()===code).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date))||String(b[1].created||"").localeCompare(String(a[1].created||""))).slice(0,8);
     return ml.length?`<div class="sect">Derniers mouvements de stock</div><p class="note" style="margin-top:0">Une erreur ? Appuie sur la ligne pour la corriger ou la supprimer.</p>${mvtsList(ml)}`:""; })()}
@@ -1266,27 +1273,31 @@ function sheetClientForm(id){
 }
 const MVT={"Entrée":["Ajouter au stock","Réception d'une commande Chogan ou correction d'inventaire.",["Commande Chogan","Correction inventaire","Retour cliente"]],
  "Sortie":["Sortie de stock","Cadeau, échantillon, usage perso… (les ventes se font dans l'onglet Vendre).",["Cadeau / offert","Échantillon / testeur","Usage perso","Correction inventaire"]],
+ "Cadeau":["Cadeau offert","Produit offert à un organisateur de salon, un partenaire ou pour un jeu concours : il sort du stock, sans vente. Son coût (prix d'achat) est compté dans le bilan du salon choisi.",["Cadeau : organisateur de salon","Cadeau : partenaire / commerçant","Cadeau : jeu concours","Cadeau : cliente"]],
  "Perso":["Ma conso perso","Produit pris dans ton stock pour toi ou ta famille : il sort du stock, sans vente ni gain. Tu retrouves le total de ta conso perso dans l'onglet Stock.",["Usage perso","Famille","Cadeau perso"]],
  "Exposition":["Mettre en exposition","Ces produits restent à toi mais sortent du stock vendable : ils ne seront plus proposés à la vente ni comptés comme disponibles.",["Présentoir salon","Testeur","Vitrine / déco"]],
  "Retour expo":["Retour d'exposition","Le produit redevient vendable et retourne dans ton stock disponible.",["Remis en vente","Correction"]],
  "Fin d'expo":["Fin d'exposition","Le produit d'exposition est terminé : il sort définitivement (vide, abîmé, offert…). Ton stock vendable ne change pas.",["Vide / terminé","Abîmé","Offert","Vendu (prix spécial)"]]};
+const isCadeauMvt=m=>m&&m.type==="Sortie"&&/^cadeau( :|\s*\/\s*offert)/i.test(String(m.motif||""));
 const isPersoMvt=m=>m&&m.type==="Sortie"&&/perso|famille/i.test(String(m.motif||""));
 const MVT_LBL={"Entrée":"Entrée en stock","Sortie":"Sortie","Exposition":"Mise en exposition","Retour expo":"Retour d'exposition","Fin d'expo":"Fin d'exposition"};
 function sheetMvt(type, code, id){
-  const m=id?S.mvts.get(id):null; if(m){ type=isPersoMvt(m)?"Perso":m.type; code=m.code; }
+  const m=id?S.mvts.get(id):null; if(m){ type=isPersoMvt(m)?"Perso":isCadeauMvt(m)?"Cadeau":m.type; code=m.code; }
   const T=MVT[type]||MVT["Sortie"]; const ex=code?(CALC.expo.get(String(code).toUpperCase())||0):0;
   const motifs=m&&m.motif&&!T[2].includes(m.motif)?[m.motif,...T[2]]:T[2];
   openSheet(`<div class="sheet-head"><h2 style="margin:0">${m?"Modifier : ":""}${T[0]}</h2><button class="x" data-act="close" aria-label="Fermer">×</button></div>
   <p class="note">${m?"Corrige le produit, la quantité, la date ou le motif : le stock est recalculé aussitôt.":T[1]}${!m&&(type==="Retour expo"||type==="Fin d'expo")&&code?" "+ex+" en exposition actuellement.":""}</p>
-  <form id="mform" data-type="${m?esc(m.type):(type==="Perso"?"Sortie":type)}" ${m?`data-id="${esc(id)}"`:""}><label class="f" for="mf-code">Produit</label><input id="mf-code" class="in" autocomplete="off" placeholder="Code ou nom…" value="${esc(code||"")}"><div id="mf-res"></div>
+  <form id="mform" data-type="${m?esc(m.type):(type==="Perso"||type==="Cadeau"?"Sortie":type)}" ${m?`data-id="${esc(id)}"`:""}><label class="f" for="mf-code">Produit</label><input id="mf-code" class="in" autocomplete="off" placeholder="Code ou nom…" value="${esc(code||"")}"><div id="mf-res"></div>
   <div class="grid2"><div><label class="f" for="mf-qty">Quantité</label><input id="mf-qty" class="in" type="number" min="1" step="1" value="${m?esc(m.qty):1}" inputmode="numeric"></div><div><label class="f" for="mf-date">Date</label><input id="mf-date" class="in" type="date" value="${m?esc(m.date||today()):today()}"></div></div>
   <label class="f" for="mf-motif">Motif</label><select id="mf-motif" class="in">${motifs.map(x=>`<option ${m&&x===m.motif?"selected":""}>${esc(x)}</option>`).join("")}</select>
-  <label class="f" for="mf-note">Note</label><input id="mf-note" class="in" value="${m?esc(m.note||""):""}">
+  ${type==="Cadeau"?(()=>{ const ev=[...new Set([...evList().map(e=>e.nom),...CALC.ventes.map(v=>v.salon).filter(Boolean)])]; const up=evList().filter(e=>e.fin>=addDays(today(),-3)).sort((a,b)=>a.debut.localeCompare(b.debut))[0];
+    return `<label class="f" for="mf-salon">Salon ou événement (pour son bilan)</label><input id="mf-salon" class="in" list="mf-salons" value="${esc(m?(m.salon||""):(up?up.nom:""))}" placeholder="Ex. : Marché de Noël"><datalist id="mf-salons">${ev.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`; })():""}
+  <label class="f" for="mf-note">${type==="Cadeau"?"Pour qui ?":"Note"}</label><input id="mf-note" class="in" value="${m?esc(m.note||""):""}" ${type==="Cadeau"?'placeholder="Ex. : Mme Durand, organisatrice"':""}>
   <button class="btn" style="width:100%;margin-top:14px" type="submit">${m?"Enregistrer la correction":"Enregistrer"}</button></form>
   ${m?`<button class="btn ghost" style="width:100%;margin-top:10px;color:var(--bad)" data-act="delmvt" data-id="${esc(id)}">Supprimer ce mouvement</button>`:""}`);
 }
 function mvtsList(list){ return `<div class="list">${list.map(([id,m])=>{const p=BYCODE.get(String(m.code||"").toUpperCase())||{}; const sign=m.type==="Entrée"||m.type==="Retour expo"?"+":"−";
-  return `<button class="row" data-act="editmvt" data-id="${esc(id)}"><span class="grow"><span class="t1">${isPersoMvt(m)?"Conso perso":esc(MVT_LBL[m.type]||m.type)} · ${sign}${nb(m.qty)}</span><br><span class="t2">${fdate(m.date)}${m.motif?" · "+esc(m.motif):""}${m.note?" · "+esc(m.note):""}</span></span><span class="t2" aria-hidden="true">Modifier ›</span></button>`;}).join("")}</div>`; }
+  return `<button class="row" data-act="editmvt" data-id="${esc(id)}"><span class="grow"><span class="t1">${isPersoMvt(m)?"Conso perso":isCadeauMvt(m)?"Cadeau offert":esc(MVT_LBL[m.type]||m.type)} · ${sign}${nb(m.qty)}</span><br><span class="t2">${fdate(m.date)}${m.motif?" · "+esc(m.motif):""}${m.note?" · "+esc(m.note):""}</span></span><span class="t2" aria-hidden="true">Modifier ›</span></button>`;}).join("")}</div>`; }
 
 /* ---------- écritures ---------- */
 async function write(path, data, merge=false){
@@ -1380,6 +1391,7 @@ document.addEventListener("click", async e=>{
   if(act==="expoend"){ sheetMvt("Fin d'expo", a.dataset.code); return; }
   if(act==="sortie"){ sheetMvt("Sortie", a.dataset.code); return; }
   if(act==="perso"){ sheetMvt("Perso", a.dataset.code); return; }
+  if(act==="cadeau"){ sheetMvt("Cadeau", a.dataset.code); return; }
   if(act==="editmvt"){ sheetMvt(null, null, a.dataset.id); return; }
   if(act==="delmvt"){ const id=a.dataset.id; if(a.dataset.confirm!=="1"){ a.dataset.confirm="1"; a.textContent="Confirmer la suppression"; return; } a.disabled=true;
     try{ await S.db.doc("mvts/"+id).delete(); closeSheet(); toast("Mouvement supprimé : le stock est recalculé."); }catch(err){ a.disabled=false; toast("Suppression impossible, réessaie."); } return; }
@@ -1614,8 +1626,9 @@ document.addEventListener("submit", async e=>{
       if((ty==="Retour expo"||ty==="Fin d'expo") && qty>(CALC.expo.get(code)||0)){ toast("Il n'y en a que "+(CALC.expo.get(code)||0)+" en exposition."); btn.disabled=false; return; }
       if(!S.stock.has(code)) await write("stock/"+code,{depart:0,seuil:0});
       f.dataset.motifSaved=$("#mf-motif").value;
-      if(f.dataset.id){ const old=S.mvts.get(f.dataset.id)||{}; await write("mvts/"+f.dataset.id, {...old, date:$("#mf-date").value, code, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), modifie:new Date().toISOString()}); closeSheet(); toast("Correction enregistrée : le stock est recalculé."); btn.disabled=false; return; }
-      await write("mvts/"+uid("m"), {date:$("#mf-date").value, code, type:f.dataset.type, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), created:new Date().toISOString()});
+      const salonV=$("#mf-salon")?$("#mf-salon").value.trim():null;
+      if(f.dataset.id){ const old=S.mvts.get(f.dataset.id)||{}; await write("mvts/"+f.dataset.id, {...old, ...(salonV!=null?{salon:salonV}:{}), date:$("#mf-date").value, code, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), modifie:new Date().toISOString()}); closeSheet(); toast("Correction enregistrée : le stock est recalculé."); btn.disabled=false; return; }
+      await write("mvts/"+uid("m"), {...(salonV?{salon:salonV}:{}), date:$("#mf-date").value, code, type:f.dataset.type, qty, motif:$("#mf-motif").value, note:$("#mf-note").value.trim(), created:new Date().toISOString()});
       closeSheet(); toast(({"Entrée":"+"+qty+" en stock"+(p.pt&&/commande chogan/i.test(f.dataset.motifSaved||"")?" (+"+nb(Math.round(p.pt*qty*100)/100)+" pts)":"")+" · ","Exposition":qty+" mis en exposition · ","Retour expo":qty+" remis en stock · ","Fin d'expo":qty+" sorti de l'exposition · "}[f.dataset.type]||"−"+qty+" · ")+p.n);
     }
     if(f.id==="pform"){
